@@ -79,11 +79,50 @@ def load_or_fetch_info(appID):
     return info
 
 
-def launch_wait(appID):
-    subprocess.run("clear", shell=True)
-    info = load_or_fetch_info(appID)
+def xfconf_query(channel, prop, value=None):
+    if value:
+        subprocess.run([
+            "xfconf-query",
+            "--create",
+            "--type", "string",
+            "-c", channel,
+            "-p", prop,
+            "-s", value,
+        ])
+    else:
+        subprocess.run([
+            "xfconf-query",
+            "-c", channel,
+            "-p", prop,
+            "-r",
+        ])
 
+
+def configure_splash(img):
+    xfconf_query("xfce4-terminal", "/font-name", "Monospace Bold 20")
+    if img:
+        xfconf_query("xfce4-terminal", "/background-image-file", img)
+        xfconf_query("xfce4-terminal", "/background-mode", "TERMINAL_BACKGROUND_IMAGE")
+        xfconf_query("xfce4-terminal", "/background-image-style", "TERMINAL_BACKGROUND_STYLE_SCALED")
+    else:
+        xfconf_query("xfce4-terminal", "/background-image-file")
+        xfconf_query("xfce4-terminal", "/background-mode")
+        xfconf_query("xfce4-terminal", "/background-image-style")
+
+
+def launch_wait(appID):
+    # subprocess.run("clear", shell=True)
+    info = load_or_fetch_info(appID)
     executable = get_executable(info)
+
+    img = None
+    if os.path.exists(f"bg_{appID}.jpg"):
+        img = f"bg_{appID}.jpg"
+    elif os.path.exists(f"library_{appID}.jpg"):
+        img = f"library_{appID}.jpg"
+
+    configure_splash(img)
+
     print(f"Launching {info['common']['name']} ...")
     subprocess.run(["steam", f"steam://rungameid/{appID}"])
     print(f"Waiting for {executable} ...")
@@ -111,7 +150,7 @@ def launch_wait(appID):
     print("Game executable running! Please enjoy =^_^=")
     pidfd = os.pidfd_open(pid)
     select.select([pidfd], [], [])
-    print("Game executable closed, returning you to the menu ...")
+    print("Game executable closed, returning you to the menu!")
 
 
 def main():
