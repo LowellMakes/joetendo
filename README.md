@@ -62,6 +62,13 @@ nago on basecamp and give them your public SSH key for access.
   for the steam application, which is a little annoying, but very easy
   to code for.
 
+- `killswitch/code.py` is a CircuitPython program written for the
+  Raspberry Pi Pico that emulates a keyboard device that when its single
+  button is pressed, issues a SysRq "REISUB" request to immediately
+  reboot linux, followed by a ctrl+alt+del sequence to reboot the
+  machine if it is in the BIOS screen. This powers the "magic reset
+  button" located inside of the Joetendo control deck.
+
 
 # Deployment
 
@@ -70,7 +77,7 @@ the joetendo and there is no "installer" or script to synchronize
 them. On the joetendo cabinet, these files are located at:
 
 - `kiosk` is at `/home/nago/bin/kiosk`
-- `vent` is at `/home/nago/bin/vent'
+- `vent` is at `/home/nago/bin/vent`
 - `steam/*` is at `/home/nago/RetroPie/steam`, including the `menu` and
   `keymaps` subdirectories.
 
