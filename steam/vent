@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 
+import json
 import os
 import select
 import subprocess
 import sys
 import time
 
-import json
 import requests
 import vdf
 
 
-def switch_keymap(keymap):
+def switch_keymap(active_link, keymap):
     subprocess.run(
-        f"ln -f -s {keymap} ~/keymaps/active.conf && keyd reload",
+        f"ln -f -s \"{keymap}\" \"{active_link}\" && keyd reload",
         shell=True,
         check=True,
     )
@@ -26,26 +26,36 @@ def get_info(appID):
         check=True
     )
 
-    index = ret.stdout.find(ord('"'))
-    output = ret.stdout[index:].decode()
+    output = ret.stdout.decode()
+
+    index = output.find(f'"{appID}"')
+    if index == -1:
+        raise Exception("Could not identify the start of VDF metadata")
+
+    output = output[index:]
+    index = output.find("Unloading Steam API")
+    if index != -1:
+        output = output[:index]
     info = vdf.loads(output)
 
     return info[appID]
 
 
-def get_images(appID):
-    if not os.path.exists(f"library_{appID}.jpg"):
+def get_images(appID, cachedir):
+    libimg = os.path.join(cachedir, f"library_{appID}.jpg")
+    if not os.path.exists(libimg):
         url = f"https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{appID}/library_600x900_2x.jpg"
         rsp = requests.get(url)
         if rsp.status_code == 200:
-            with open(f"library_{appID}.jpg", "wb") as outfile:
+            with open(libimg, "wb") as outfile:
                 outfile.write(rsp.content)
 
-    if not os.path.exists(f"bg_{appID}.jpg"):
+    bgimg = os.path.join(cachedir, f"bg_{appID}.jpg")
+    if not os.path.exists(bgimg):
         url = f"https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{appID}/page_bg_raw.jpg"
         rsp = requests.get(url)
         if rsp.status_code == 200:
-            with open(f"bg_{appID}.jpg", "wb") as outfile:
+            with open(bgimg, "wb") as outfile:
                 outfile.write(rsp.content)
 
 
@@ -61,20 +71,21 @@ def get_executable(info):
         if execinfo.get('config', {}).get('oslist', None) in ('windows', None):
             return execinfo['executable']
 
-    print("Couldn't find a suitable executable to run this game...?")
-    sys.exit(2)
+    raise Exception("Couldn't find a suitable executable to run this game ...?")
 
 
-def load_or_fetch_info(appID):
-    if os.path.exists(f"{appID}.json"):
-        with open(f"{appID}.json", "r") as infile:
+def load_or_fetch_info(appID, cachedir):
+    target = os.path.join(cachedir, f"{appID}.json")
+
+    if os.path.exists(target):
+        with open(target, "r") as infile:
             info = json.load(infile)
     else:
         info = get_info(appID)
-        with open(f"{appID}.json", "w") as outfile:
+        with open(target, "w") as outfile:
             json.dump(info, outfile, indent=2)
 
-    get_images(appID)
+    get_images(appID, cachedir)
 
     return info
 
@@ -98,6 +109,12 @@ def xfconf_query(channel, prop, value=None):
         ])
 
 
+def remove_splash():
+    xfconf_query("xfce4-terminal", "/background-image-file")
+    xfconf_query("xfce4-terminal", "/background-mode")
+    xfconf_query("xfce4-terminal", "/background-image-style")
+
+
 def configure_splash(img):
     xfconf_query("xfce4-terminal", "/font-name", "Monospace Bold 20")
     if img:
@@ -105,22 +122,24 @@ def configure_splash(img):
         xfconf_query("xfce4-terminal", "/background-mode", "TERMINAL_BACKGROUND_IMAGE")
         xfconf_query("xfce4-terminal", "/background-image-style", "TERMINAL_BACKGROUND_STYLE_SCALED")
     else:
-        xfconf_query("xfce4-terminal", "/background-image-file")
-        xfconf_query("xfce4-terminal", "/background-mode")
-        xfconf_query("xfce4-terminal", "/background-image-style")
+        remove_splash()
 
 
-def launch_wait(appID):
+def launch_wait(appID, rootdir):
     # subprocess.run("clear", shell=True)
-    info = load_or_fetch_info(appID)
+    cachedir = os.path.join(rootdir, "cache/")
+    os.makedirs(cachedir, exist_ok=True)
+
+    info = load_or_fetch_info(appID, cachedir)
     executable = get_executable(info)
 
     img = None
-    if os.path.exists(f"bg_{appID}.jpg"):
-        img = f"bg_{appID}.jpg"
-    elif os.path.exists(f"library_{appID}.jpg"):
-        img = f"library_{appID}.jpg"
-
+    bgimg = os.path.join(cachedir, f"bg_{appID}.jpg")
+    libimg = os.path.join(cachedir, f"library_{appID}.jpg")
+    if os.path.exists(bgimg):
+        img = bgimg
+    elif os.path.exists(libimg):
+        img = libimg
     configure_splash(img)
 
     print(f"Launching {info['common']['name']} ...")
@@ -141,27 +160,59 @@ def launch_wait(appID):
 
         pid = int(ret.stdout.decode().strip().split(" ")[0])
 
-        print("OK!")
+        print(f"OK! {pid=}")
         break
     else:
         raise Exception("Game didn't launch?")
 
-    print(f"{pid=}")
     print("Game executable running! Please enjoy =^_^=")
     pidfd = os.pidfd_open(pid)
     select.select([pidfd], [], [])
     print("Game executable closed, returning you to the menu!")
 
 
-def main():
-    appID = sys.argv[1]
-    keymap = sys.argv[2]
+def first_run_setup(active_link):
+    # Point /etc/keyd/default.conf to {active_link}
+    # We do this so we have permission to change the active conf without root!
+    subprocess.run(
+	f"ln -f -s \"{active_link}\" /etc/keyd/default.conf && keyd reload",
+	shell=True,
+	check=True,
+    )
 
-    switch_keymap(keymap)
+
+def main():
+    # Requirements:
+    #
+    # /etc/keyd/default.conf is a symlink to {active_link}.
+    # {rootdir}/keymaps/default.conf exists and is a suitable keymap when no steam game is running.
+    # {rootdir}/keymaps/{appID}.conf, if it exists, should be a suitable keymap config for that game.
+    #
+    # For splash screen images, this script is being run by xfce4-terminal.
+    #
+    # 'keyd' is available in $PATH (and the daemon is currently running)
+    # 'xfconf-query' is available in $PATH
+    # 'steam' is available in $PATH (and should already be running!)
+    # 'steamcmd' is available in $PATH
+    #
+    # 'vdf' python library is available (pip install vdf)
+    # 'requests' python library is available (pip install requests)
+
+    appID = sys.argv[1]
+
+    rootdir = os.path.expanduser("~/RetroPie/steam/")
+    keymapdir = os.path.join(rootdir, "keymaps/")
+    active_link = os.path.join(keymapdir, "active.conf")
+    default_map = os.path.join(keymapdir, "default.conf")
+    keymap = os.path.join(keymapdir, f"{appID}.conf")
+    os.makedirs(keymapdir, exist_ok=True)
+
+    switch_keymap(active_link, keymap)
     try:
-        launch_wait(appID)
+        launch_wait(appID, rootdir)
     finally:
-        switch_keymap("~/keymaps/default.conf")
+        switch_keymap(active_link, default_map)
+        remove_splash()
 
 
 if __name__ == '__main__':
