@@ -2,21 +2,53 @@
 
 import json
 import os
+from pathlib import Path
 import select
+import signal
 import subprocess
 import sys
 import time
+from xml.etree import ElementTree
 
-import requests
-import vdf
+_HAVE_REQUESTS = False
+try:
+    import requests
+    _HAVE_REQUESTS = True
+except ModuleNotFoundError:
+    pass
+
+_HAVE_VDF = False
+try:
+    import vdf
+    _HAVE_VDF = True
+except ModuleNotFoundError:
+    pass
+
+
+def ex(*args):
+    subprocess.run(args, check=True)
+
+
+def mklink(source, dest):
+    subprocess.run(
+        ["ln", "-f", "-s", dest, source],
+        check=True,
+    )
 
 
 def switch_keymap(active_link, keymap):
-    subprocess.run(
-        f"ln -f -s \"{keymap}\" \"{active_link}\" && keyd reload",
-        shell=True,
-        check=True,
-    )
+    mklink(active_link, keymap)
+    try:
+        ex("systemctl", "is-active", "--quiet", "keyd")
+    except subprocess.CalledProcessError:
+        print("keyd is not running! what happened???", file=sys.stderr)
+        raise
+
+    try:
+        ex("keyd", "reload")
+    except subprocess.CalledProcessError:
+        print("keyd reload failed??? what happened???", file=sys.stderr)
+        raise
 
 
 def get_info(appID):
@@ -115,7 +147,7 @@ def remove_splash():
     xfconf_query("xfce4-terminal", "/background-image-style")
 
 
-def configure_splash(img):
+def do_configure_splash(img):
     xfconf_query("xfce4-terminal", "/font-name", "Monospace Bold 20")
     if img:
         xfconf_query("xfce4-terminal", "/background-image-file", img)
@@ -125,8 +157,15 @@ def configure_splash(img):
         remove_splash()
 
 
+def configure_splash(img):
+    try:
+        do_configure_splash(img)
+    except FileNotFoundError:
+        print("Warning: Could not change terminal background. Is xfconf-query installed?")
+
+
 def launch_wait(appID, rootdir):
-    # subprocess.run("clear", shell=True)
+    subprocess.run("clear", shell=True)
     cachedir = os.path.join(rootdir, "cache/")
     os.makedirs(cachedir, exist_ok=True)
 
@@ -146,6 +185,7 @@ def launch_wait(appID, rootdir):
     subprocess.run(["steam", f"steam://rungameid/{appID}"])
     print(f"Waiting for {executable} ...")
 
+    pid = None
     for i in range(60):
         ret = subprocess.run(
             f"ps ax -o pid,comm | grep -i {executable}",
@@ -167,53 +207,165 @@ def launch_wait(appID, rootdir):
 
     print("Game executable running! Please enjoy =^_^=")
     pidfd = os.pidfd_open(pid)
+
+    def handler(sig, frame):
+        print("SIGTERM received, forwarding to game ...")
+        signal.pidfd_send_signal(pidfd, signal.SIGTERM)
+
+    signal.signal(signal.SIGTERM, handler)
     select.select([pidfd], [], [])
-    print("Game executable closed, returning you to the menu!")
+    print("Game executable closed, returning you to the menu (｡･ω･｡)ﾉ♡")
 
 
-def first_run_setup(active_link):
+def add_steam_system(config_path, steam_path):
+    tree = ElementTree.parse(config_path)
+    root = tree.getroot()
+
+    if root.findall('system/name[.="steam"]'):
+        return
+
+    node = ElementTree.fromstring(f"""
+    <system>
+      <name>steam</name>
+      <fullname>Steam</fullname>
+      <path>{steam_path}</path>
+      <extension>.sh</extension>
+      <command>%ROM%</command>
+      <platform>steam</platform>
+      <theme>steam</theme>
+    </system>
+    """)
+
+    root.append(node)
+    ElementTree.indent(tree)
+    tree.write(config_path)
+
+
+def external_tool_setup():
+    try:
+        ex("which", "apt")
+    except subprocess.CalledProcessError:
+        print("This setup script is intended for apt-based systems only", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        ex("which", "wget")
+    except subprocess.CalledProcessError:
+        ex("apt", "install", "-y", "wget")
+
+    try:
+        ex("which", "keyd")
+    except subprocess.CalledProcessError:
+        ex("wget", "https://api.github.com/repos/rvaiya/keyd/releases/latest", "-O", "keyd.json")
+        with open("keyd.json", "rb") as infile:
+            data = json.load(infile)
+            url = data['tarball_url']
+        ex("wget", url, "-O", "keyd-latest.tar.gz")
+        os.mkdir("keyd-latest")
+        ex("tar", "zxf", "keyd-latest.tar.gz", "-C", "keyd-latest", "--strip-components", "1")
+        ex("make", "-C", "keyd-latest/")
+        ex("make", "install", "-C", "keyd-latest/")
+
+    ex("systemctl", "enable", "keyd")
+
+    try:
+        ex("which", "steam")
+    except subprocess.CalledProcessError:
+        ex("wget", "https://repo.steampowered.com/steam/archive/stable/steam_latest.deb")
+        ex("dpkg", "-i", "steam_latest.deb")
+
+    try:
+        ex("which", "steamcmd")
+    except subprocess.CalledProcessError:
+        ex("add-apt-repository", "-y", "multiverse")
+        ex("dpkg", "--add-architecture", "i386")
+        ex("apt", "update", "-y")
+        ex("apt", "install", "-y", "steamcmd")
+
+    try:
+        ex("which", "xfce4-terminal")
+        ex("which", "xfconf-query")
+    except subprocess.CalledProcessError:
+        ex("apt", "install", "-y", "xfce4-terminal")
+
+    if not _HAVE_REQUESTS:
+        ex("apt", "install", "-y", "python3-requests")
+
+    if not _HAVE_VDF:
+        ex("apt", "install", "-y", "python3-vdf")
+
+
+def first_run_setup(keymapdir):
+    external_tool_setup()
+
     # Point /etc/keyd/default.conf to {active_link}
     # We do this so we have permission to change the active conf without root!
-    subprocess.run(
-	f"ln -f -s \"{active_link}\" /etc/keyd/default.conf && keyd reload",
-	shell=True,
-	check=True,
-    )
+    active_link = os.path.join(keymapdir, "active.conf")
+    mklink("/etc/keyd/default.conf", active_link)
+
+    # Point active.conf to our (user-owned) default.conf
+    default_map = os.path.join(keymapdir, "default.conf")
+    mklink(active_link, default_map)
+
+    rootdir = os.path.expanduser("~/RetroPie/steam/")
+    add_steam_system("/etc/emulationstation/es_systems.cfg", os.path.join(rootdir, "menu"))
+
+    # install the default keymapping config
+    # install the 'vent' script into place
+    # install the 'kiosk' script into place
+    # replace the ES autoboot with kiosk/xfce4-terminal autoboot
+    # add kiosk user to keyd group to be able to execute 'keyd reload'
 
 
 def main():
-    # Requirements:
-    #
     # /etc/keyd/default.conf is a symlink to {active_link}.
     # {rootdir}/keymaps/default.conf exists and is a suitable keymap when no steam game is running.
     # {rootdir}/keymaps/{appID}.conf, if it exists, should be a suitable keymap config for that game.
-    #
-    # For splash screen images, this script is being run by xfce4-terminal.
-    #
-    # 'keyd' is available in $PATH (and the daemon is currently running)
-    # 'xfconf-query' is available in $PATH
-    # 'steam' is available in $PATH (and should already be running!)
-    # 'steamcmd' is available in $PATH
-    #
-    # 'vdf' python library is available (pip install vdf)
-    # 'requests' python library is available (pip install requests)
+
+    user = os.environ.get("SUDO_USER")
+    if not user:
+        user = os.environ.get("USER")
+    if not user:
+        # todo: could use 'whoami' ...
+        raise Exception("Failed to determine who is running this script. Who are you?")
 
     appID = sys.argv[1]
 
-    rootdir = os.path.expanduser("~/RetroPie/steam/")
-    keymapdir = os.path.join(rootdir, "keymaps/")
-    active_link = os.path.join(keymapdir, "active.conf")
-    default_map = os.path.join(keymapdir, "default.conf")
-    keymap = os.path.join(keymapdir, f"{appID}.conf")
-    os.makedirs(keymapdir, exist_ok=True)
+    home = Path(os.path.expanduser(f"~{user}"))
+    rp_root = home.joinpath("RetroPie")
+    steam_root = rp_root.joinpath("steam")
+    keymap_dir = steam_root.joinpath("keymaps")
+    active_link = keymap_dir.joinpath("active.conf")
+    default_map = keymap_dir.joinpath("default.conf")
+    keymap = keymap_dir.joinpath(f"{appID}.conf")
 
-    switch_keymap(active_link, keymap)
+    os.makedirs(keymap_dir, exist_ok=True)
+
     try:
-        launch_wait(appID, rootdir)
+        switch_keymap(str(active_link), str(keymap))
+        launch_wait(appID, str(steam_root))
     finally:
-        switch_keymap(active_link, default_map)
+        switch_keymap(str(active_link), str(default_map))
         remove_splash()
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except BaseException as exc:
+        print("Oof, something exploded.")
+        print(f"{type(exc)}: {str(exc)}")
+        print("Launcher will return to emulationstation in three minutes.")
+        print("Please take a picture of the error messages and post it on the Arcade gaming basecamp,")
+        print("Or mail it to gaming@lowellmakes.com. Thank you and sorry for the bugs!!")
+        time.sleep(60)
+        print("Two minutes left.")
+        time.sleep(60)
+        print("One minute left.")
+        time.sleep(30)
+        print("Thirty seconds ...")
+        time.sleep(25)
+        print("Five seconds!")
+        time.sleep(5)
+        print("Adios cowboy!")
+        raise
