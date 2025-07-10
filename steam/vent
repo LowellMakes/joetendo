@@ -10,6 +10,12 @@ import sys
 import time
 from xml.etree import ElementTree
 
+import logging
+from logging.handlers import SysLogHandler
+
+LOG = logging.getLogger('vent')
+
+
 _HAVE_REQUESTS = False
 try:
     import requests
@@ -25,29 +31,44 @@ except ModuleNotFoundError:
     pass
 
 
+_HAVE_APT = False
+_HAVE_DNF = False
+
+
 def ex(*args):
-    subprocess.run(args, check=True)
+    LOG.debug("exec: %s", str(args))
+    try:
+        subprocess.run(args, check=True)
+    except subprocess.CalledProcessError:
+        LOG.exception("subprocess failed")
+        raise
+
+
+def install(*args):
+    if _HAVE_APT:
+        ex('apt', 'install', '-y', *args)
+    elif _HAVE_DNF:
+        ex('dnf', 'install', '-y', *args)
 
 
 def mklink(source, dest):
-    subprocess.run(
-        ["ln", "-f", "-s", dest, source],
-        check=True,
-    )
+    ex("ln", "-f", "-s", dest, source)
 
 
 def switch_keymap(active_link, keymap):
-    mklink(active_link, keymap)
     try:
         ex("systemctl", "is-active", "--quiet", "keyd")
     except subprocess.CalledProcessError:
-        print("keyd is not running! what happened???", file=sys.stderr)
+        LOG.error("keyd is not running! what happened???")
         raise
+
+    # FIXME: restore the other link if the rest of this method fails
+    mklink(active_link, keymap)
 
     try:
         ex("keyd", "reload")
     except subprocess.CalledProcessError:
-        print("keyd reload failed??? what happened???", file=sys.stderr)
+        LOG.error("keyd reload failed??? what happened???")
         raise
 
 
@@ -124,21 +145,21 @@ def load_or_fetch_info(appID, cachedir):
 
 def xfconf_query(channel, prop, value=None):
     if value:
-        subprocess.run([
+        ex(
             "xfconf-query",
             "--create",
             "--type", "string",
             "-c", channel,
             "-p", prop,
             "-s", value,
-        ])
+        )
     else:
-        subprocess.run([
+        ex(
             "xfconf-query",
             "-c", channel,
             "-p", prop,
             "-r",
-        ])
+        )
 
 
 def remove_splash():
@@ -161,7 +182,7 @@ def configure_splash(img):
     try:
         do_configure_splash(img)
     except FileNotFoundError:
-        print("Warning: Could not change terminal background. Is xfconf-query installed?")
+        LOG.warning("Could not change terminal background. Is xfconf-query installed?")
 
 
 def launch_wait(appID, rootdir):
@@ -182,7 +203,7 @@ def launch_wait(appID, rootdir):
     configure_splash(img)
 
     print(f"Launching {info['common']['name']} ...")
-    subprocess.run(["steam", f"steam://rungameid/{appID}"])
+    ex("steam", f"steam://rungameid/{appID}")
     print(f"Waiting for {executable} ...")
 
     pid = None
@@ -209,7 +230,7 @@ def launch_wait(appID, rootdir):
     pidfd = os.pidfd_open(pid)
 
     def handler(sig, frame):
-        print("SIGTERM received, forwarding to game ...")
+        LOG.debug("SIGTERM received (from exit buttom), forwarding to game process")
         signal.pidfd_send_signal(pidfd, signal.SIGTERM)
 
     signal.signal(signal.SIGTERM, handler)
@@ -242,16 +263,28 @@ def add_steam_system(config_path, steam_path):
 
 
 def external_tool_setup():
+    global _HAVE_APT, _HAVE_DNF
+
     try:
         ex("which", "apt")
+        _HAVE_APT = True
     except subprocess.CalledProcessError:
-        print("This setup script is intended for apt-based systems only", file=sys.stderr)
+        pass
+
+    try:
+        ex("which", "dnf")
+        _HAVE_DNF = True
+    except subprocess.CalledProcessError:
+        pass
+
+    if not (_HAVE_APT or _HAVE_DNF):
+        print("This setup script is intended for apt/dnf-based systems only", file=sys.stderr)
         sys.exit(1)
 
     try:
         ex("which", "wget")
     except subprocess.CalledProcessError:
-        ex("apt", "install", "-y", "wget")
+        install("wget")
 
     try:
         ex("which", "keyd")
@@ -286,13 +319,13 @@ def external_tool_setup():
         ex("which", "xfce4-terminal")
         ex("which", "xfconf-query")
     except subprocess.CalledProcessError:
-        ex("apt", "install", "-y", "xfce4-terminal")
+        install("xfce4-terminal")
 
     if not _HAVE_REQUESTS:
-        ex("apt", "install", "-y", "python3-requests")
+        install("python3-requests")
 
     if not _HAVE_VDF:
-        ex("apt", "install", "-y", "python3-vdf")
+        install("python3-vdf")
 
 
 def first_run_setup(keymapdir):
@@ -317,11 +350,16 @@ def first_run_setup(keymapdir):
     # add kiosk user to keyd group to be able to execute 'keyd reload'
 
 
-def main():
-    # /etc/keyd/default.conf is a symlink to {active_link}.
-    # {rootdir}/keymaps/default.conf exists and is a suitable keymap when no steam game is running.
-    # {rootdir}/keymaps/{appID}.conf, if it exists, should be a suitable keymap config for that game.
+def do_launch(active_link, keymap, appID, steam_root, default_map):
+    switch_keymap(str(active_link), str(keymap))
+    try:
+        launch_wait(appID, str(steam_root))
+    finally:
+        switch_keymap(str(active_link), str(default_map))
+        remove_splash()
 
+
+def do_main():
     user = os.environ.get("SUDO_USER")
     if not user:
         user = os.environ.get("USER")
@@ -341,19 +379,45 @@ def main():
 
     os.makedirs(keymap_dir, exist_ok=True)
 
-    try:
-        switch_keymap(str(active_link), str(keymap))
-        launch_wait(appID, str(steam_root))
-    finally:
-        switch_keymap(str(active_link), str(default_map))
-        remove_splash()
+    LOG.debug("do_main() ...")
+    LOG.debug("  steam_root=%s", steam_root)
+    LOG.debug("  keymap=%s", keymap)
+    LOG.debug("  active_link=%s", active_link)
+    LOG.debug("  default_map=%s", default_map)
+    LOG.debug("  appID=%s", appID)
+
+    do_launch(active_link, keymap, appID, steam_root, default_map)
 
 
-if __name__ == '__main__':
+def configure_logging():
+    service_name = 'vent'
+    address = ''
+    if os.path.exists('/dev/log'):
+        address = '/dev/log'
+    elif os.path.exists('/var/run/syslog'):
+        address = '/var/run/syslog'
+
+    if address:
+        syslog = SysLogHandler(address=address)
+    else:
+        syslog = SysLogHandler()
+
+    syslog.setLevel(logging.DEBUG)
+    syslog.setFormatter(
+        logging.Formatter(f"{service_name}: %(name)s: %(message)s")
+    )
+
+    LOG.setLevel(logging.DEBUG)
+    LOG.addHandler(syslog)
+
+
+def main():
+    configure_logging()
+
     try:
-        main()
-    except BaseException as exc:
-        print("Oof, something exploded.")
+        do_main()
+    except:
+        LOG.exception("Something broke!")
         print(f"{type(exc)}: {str(exc)}")
         print("Launcher will return to emulationstation in three minutes.")
         print("Please take a picture of the error messages and post it on the Arcade gaming basecamp,")
@@ -369,3 +433,7 @@ if __name__ == '__main__':
         time.sleep(5)
         print("Adios cowboy!")
         raise
+
+
+if __name__ == '__main__':
+    main()
