@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
+import datetime
 import json
 import os
 from pathlib import Path
+import shlex
 import select
 import signal
 import subprocess
@@ -35,10 +37,12 @@ _HAVE_APT = False
 _HAVE_DNF = False
 
 
-def ex(*args):
-    LOG.debug("exec: %s", str(args))
+def ex(*args, check=True, capture_output=False):
+    cmd = " ".join(shlex.quote(arg) for arg in args)
+    LOG.debug("exec> %s", cmd)
     try:
-        subprocess.run(args, check=True)
+        result = subprocess.run(args, check=check, capture_output=capture_output)
+        return result
     except subprocess.CalledProcessError:
         LOG.exception("subprocess failed")
         raise
@@ -55,34 +59,37 @@ def mklink(source, dest):
     ex("ln", "-f", "-s", dest, source)
 
 
-def switch_keymap(active_link, keymap):
+def switch_keymap(active_link, default_link, keymap):
     try:
         ex("systemctl", "is-active", "--quiet", "keyd")
     except subprocess.CalledProcessError:
-        LOG.error("keyd is not running! what happened???")
+        LOG.error("keyd is not running! What happened to it?")
         raise
 
-    # FIXME: restore the other link if the rest of this method fails
     mklink(active_link, keymap)
 
     try:
         ex("keyd", "reload")
     except subprocess.CalledProcessError:
-        LOG.error("keyd reload failed??? what happened???")
+        LOG.error("keyd reload failed! Is there an error in the keyd configuration file?")
+
+        try:
+            if default_link != keymap:
+                switch_keymap(active_link, default_link, default_link)
+        except Exception:
+            LOG.exception("Nested exception while trying to restore default keymap in exception handler...!")
+
         raise
 
 
 def get_info(appID):
-    ret = subprocess.run(
-        ["steamcmd", "+app_info_print", appID, "+exit"],
-        capture_output=True,
-        check=True
-    )
-
+    ret = ex("steamcmd", "+app_info_print", appID, "+exit", capture_output=True)
     output = ret.stdout.decode()
 
     index = output.find(f'"{appID}"')
     if index == -1:
+        LOG.error("Could not parse steamcmd output, start of VDF metadata could not be found")
+        LOG.debug(output)
         raise Exception("Could not identify the start of VDF metadata")
 
     output = output[index:]
@@ -94,22 +101,27 @@ def get_info(appID):
     return info[appID]
 
 
+def download_and_store(url, filename):
+    if os.path.exists(filename):
+        return
+
+    try:
+        rsp = requests.get(url)
+        if rsp.status_code == 200:
+            with open(filename, "wb") as outfile:
+                outfile.write(rsp.content)
+    except requests.ConnectionError:
+        LOG.warning("ConnectionError fetching '%s'", url)
+
+
 def get_images(appID, cachedir):
     libimg = os.path.join(cachedir, f"library_{appID}.jpg")
-    if not os.path.exists(libimg):
-        url = f"https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{appID}/library_600x900_2x.jpg"
-        rsp = requests.get(url)
-        if rsp.status_code == 200:
-            with open(libimg, "wb") as outfile:
-                outfile.write(rsp.content)
+    url = f"https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{appID}/library_600x900_2x.jpg"
+    download_and_store(url, libimg)
 
     bgimg = os.path.join(cachedir, f"bg_{appID}.jpg")
-    if not os.path.exists(bgimg):
-        url = f"https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{appID}/page_bg_raw.jpg"
-        rsp = requests.get(url)
-        if rsp.status_code == 200:
-            with open(bgimg, "wb") as outfile:
-                outfile.write(rsp.content)
+    url = f"https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{appID}/page_bg_raw.jpg"
+    download_and_store(url, bgimg)
 
 
 def get_executable(info):
@@ -131,11 +143,11 @@ def load_or_fetch_info(appID, cachedir):
     target = os.path.join(cachedir, f"{appID}.json")
 
     if os.path.exists(target):
-        with open(target, "r") as infile:
+        with open(target, "r", encoding='UTF8') as infile:
             info = json.load(infile)
     else:
         info = get_info(appID)
-        with open(target, "w") as outfile:
+        with open(target, "w", encoding='UTF8') as outfile:
             json.dump(info, outfile, indent=2)
 
     get_images(appID, cachedir)
@@ -186,7 +198,7 @@ def configure_splash(img):
 
 
 def launch_wait(appID, rootdir):
-    subprocess.run("clear", shell=True)
+    subprocess.run("clear", check=False, shell=True)
     cachedir = os.path.join(rootdir, "cache/")
     os.makedirs(cachedir, exist_ok=True)
 
@@ -202,9 +214,11 @@ def launch_wait(appID, rootdir):
         img = libimg
     configure_splash(img)
 
-    print(f"Launching {info['common']['name']} ...")
+    LOG.info("Launching %s; appID=%s", appID, info['common']['name'])
+
+    print(f"Launching {info['common']['name']} ... ..", end='')
     ex("steam", f"steam://rungameid/{appID}")
-    print(f"Waiting for {executable} ...")
+    LOG.debug("Waiting for executable '%s'", executable)
 
     pid = None
     for i in range(60):
@@ -215,27 +229,40 @@ def launch_wait(appID, rootdir):
             check=False,
         )
         if ret.returncode:
-            print(f"\r{60-i} ...", end='')
+            print(f"\b\b\b{60-i:2d}", end='')
             time.sleep(1)
             continue
 
         pid = int(ret.stdout.decode().strip().split(" ")[0])
-
-        print(f"OK! {pid=}")
+        LOG.debug("Executable running: appID=%s executable=%s pid=%s", appID, executable, pid)
         break
     else:
-        raise Exception("Game didn't launch?")
+        print("")
+        LOG.error(
+            "Timed out waiting for appID=%s executable=%s",
+            appID,
+            executable
+        )
+        exc = Exception(
+            f"Timed out waiting for {executable=} {appID=}"
+        )
+        exc.add_note(
+            "System may be in an unusable state. "
+            "Consider using the reset kill switch?"
+        )
+        raise exc
 
-    print("Game executable running! Please enjoy =^_^=")
+    print("\nGame now running! Please enjoy =^_^=")
     pidfd = os.pidfd_open(pid)
 
-    def handler(sig, frame):
-        LOG.debug("SIGTERM received (from exit buttom), forwarding to game process")
+    def handler(_sig, _frame):
+        LOG.debug("SIGTERM received (from exit button), forwarding to game process")
         signal.pidfd_send_signal(pidfd, signal.SIGTERM)
 
     signal.signal(signal.SIGTERM, handler)
     select.select([pidfd], [], [])
-    print("Game executable closed, returning you to the menu (｡･ω･｡)ﾉ♡")
+    LOG.debug("Executable='%s' appID=%s pid=%s closed, exiting vent launcher", executable, appID, pid)
+    print("Game closed, returning you to the menu (｡･ω･｡)ﾉ♡")
 
 
 def add_steam_system(config_path, steam_path):
@@ -351,11 +378,11 @@ def first_run_setup(keymapdir):
 
 
 def do_launch(active_link, keymap, appID, steam_root, default_map):
-    switch_keymap(str(active_link), str(keymap))
+    switch_keymap(str(active_link), str(default_map), str(keymap))
     try:
         launch_wait(appID, str(steam_root))
     finally:
-        switch_keymap(str(active_link), str(default_map))
+        switch_keymap(str(active_link), str(default_map), str(default_map))
         remove_splash()
 
 
@@ -364,7 +391,7 @@ def do_main():
     if not user:
         user = os.environ.get("USER")
     if not user:
-        # todo: could use 'whoami' ...
+        # TODO: use 'whoami'?
         raise Exception("Failed to determine who is running this script. Who are you?")
 
     appID = sys.argv[1]
@@ -379,18 +406,17 @@ def do_main():
 
     os.makedirs(keymap_dir, exist_ok=True)
 
-    LOG.debug("do_main() ...")
-    LOG.debug("  steam_root=%s", steam_root)
-    LOG.debug("  keymap=%s", keymap)
-    LOG.debug("  active_link=%s", active_link)
-    LOG.debug("  default_map=%s", default_map)
-    LOG.debug("  appID=%s", appID)
+    LOG.debug("> vent %s", appID)
+    LOG.debug("    steam_root=%s", steam_root)
+    LOG.debug("    keymap=%s", keymap)
+    LOG.debug("    active_link=%s", active_link)
+    LOG.debug("    default_map=%s", default_map)
+    LOG.debug("    appID=%s", appID)
 
     do_launch(active_link, keymap, appID, steam_root, default_map)
 
 
 def configure_logging():
-    service_name = 'vent'
     address = ''
     if os.path.exists('/dev/log'):
         address = '/dev/log'
@@ -404,7 +430,7 @@ def configure_logging():
 
     syslog.setLevel(logging.DEBUG)
     syslog.setFormatter(
-        logging.Formatter(f"{service_name}: %(name)s: %(message)s")
+        logging.Formatter("%(name)s: %(message)s")
     )
 
     LOG.setLevel(logging.DEBUG)
@@ -416,22 +442,76 @@ def main():
 
     try:
         do_main()
-    except:
+    except Exception as exc:
         LOG.exception("Something broke!")
-        print(f"{type(exc)}: {str(exc)}")
+        print("Oof! Ouch! My bones!")
+        print("")
+        print(f"{type(exc).__name__}: {str(exc)}")
+        print("")
         print("Launcher will return to emulationstation in three minutes.")
-        print("Please take a picture of the error messages and post it on the Arcade gaming basecamp,")
-        print("Or mail it to gaming@lowellmakes.com. Thank you and sorry for the bugs!!")
-        time.sleep(60)
-        print("Two minutes left.")
-        time.sleep(60)
-        print("One minute left.")
-        time.sleep(30)
-        print("Thirty seconds ...")
-        time.sleep(25)
-        print("Five seconds!")
-        time.sleep(5)
-        print("Adios cowboy!")
+        print("Please take a picture of the above error message(s) and post it"
+              " on the Arcade gaming basecamp, or mail it to "
+              "gaming@lowellmakes.com.")
+        print("Thank you, and sorry for the inconvenience!")
+        print("")
+        print("You may want to press the reset kill-switch underneath the control deck.")
+        print("The control panel lifts up on a hinge, and there's a pink box "
+              "with a black button on it. Push it to reset the system.")
+        print("")
+
+        now = datetime.datetime.now()
+        later = now + datetime.timedelta(minutes=3)
+        while datetime.datetime.now() < later:
+            remaining = later - datetime.datetime.now()
+            print("\r" + str(remaining)[3:], end='')
+        print("")
+
+        print("""
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⣀⣀⣀⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣤⣾⡷⠶⠛⠋⠉⠉⠉⠉⠉⠛⠿⣶⣶⣶⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⣶⠟⠛⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠛⠦⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣴⠾⠟⠉⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠳⣤⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⡾⠛⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣾⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⠿⣷⣀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⣿⣆⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢻⣷⡀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣴⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢻⣷⠂⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢻⣧⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⡀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⡇⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢻⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⢺⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢻⣷⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⠀⠀⠀⠀⢰⡿⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣴⣿⣿⣿⣿⣦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣴⣿⣿⣿⡇⠀⠀⠀⢠⣿⠃⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢿⣿⣿⣿⣿⡿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⣿⣿⠇⠀⠀⣠⣿⠋⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⣷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠉⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠁⠀⢀⣾⡟⠁⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⡿⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⡆⠀⠀⢠⣾⠋⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣾⡿⠋⠀⠘⠻⣷⣤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⠟⠃⢀⣠⠿⠁⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⢀⣼⡿⠋⠀⠀⠀⠀⠸⣧⡛⢿⣦⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⡿⠋⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⢀⣾⠏⠀⠀⠀⠀⠀⠀⠀⠙⣿⡤⠈⠻⠿⣷⣄⣀⠀⠀⠀⠀⠀⢠⡆⠀⠀⠀⠀⠀⢀⣤⣤⣦⣴⣴⡆⢀⣠⣶⠿⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⣿⢃⡄⠀⠀⠀⠀⠀⠀⠀⠀⢹⣷⡀⠀⠀⠈⠙⠻⠿⢶⣤⣤⣀⡀⠃⠀⠀⠀⠀⠀⠀⠙⣉⣀⣤⣤⠿⠛⠋⠁⠀⣾⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⢀⣾⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⡇⠀⠀⠀⠀⠀⠀⠀⠈⠉⠛⠻⠿⠿⠶⠶⠶⠾⢿⣿⡛⠋⠁⠀⠀⠀⠀⠀⠀⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⢠⣾⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⡇⠀⠀⢀⣤⣤⣴⣶⣤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⣻⠗⠂⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⣾⠋⠀⠀⠀⠀⠀⢰⣷⠀⠀⠀⠀⠀⠀⠸⣿⣴⠾⠟⠉⠀⠀⠀⠉⠛⠿⣶⣀⠀⢀⣤⣶⠾⠿⠛⠶⠿⣶⡀⠀⠀⠀⠴⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⢰⡇⠀⠀⠀⠀⠀⠀⠘⣿⠀⠀⠀⠀⠀⠀⠀⠸⣷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠻⣷⣾⠟⠉⠀⠀⠀⠀⠀⠀⠙⢿⣆⠄⠀⠙⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⢠⡿⠀⠀⠀⠀⠀⠀⠀⠀⢿⣧⠀⠀⠀⠀⠀⠀⠀⢹⣷⡀⠀⠀⠀⠀⢀⣠⣤⣤⣿⣇⠀⠀⠀⠀⣠⣤⣤⣤⣀⣀⣿⡟⢶⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⣾⠃⠀⠀⠀⠀⠀⠀⠀⠀⠈⢿⣷⡄⠀⠀⠀⠀⠀⠀⠹⢷⣦⣀⣀⣴⠟⠋⢩⣉⠻⣿⡆⠀⢀⣾⣛⣹⡍⠉⠛⠿⠟⠀⢸⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⢰⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢿⣦⡀⠀⠀⠀⠀⠀⠀⠉⠉⠉⠁⠀⠀⠙⠛⠛⠻⣷⡀⣿⡟⠙⠛⠁⠀⠀⠀⠀⠀⣼⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣼⡟⢿⣶⣄⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⡇⣿⠀⠀⠀⠀⠀⠀⠀⣠⣾⠟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⡿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⡏⡀⠀⠉⠙⠛⠿⣶⣦⣤⣤⣤⣄⡀⠀⠀⠀⠀⣰⡿⠀⠹⣧⣀⠀⢀⣠⣴⡾⠟⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣿⢿⠀⠀⠀⠀⠀⠀⠀⢠⣤⠀⠈⠙⠿⠿⠿⣿⣿⢿⡇⠀⠀⠈⠻⠿⠛⠋⠁⠀⢰⡿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠀⠈⠀⠀⠀⠀⠀⠀⠀⣼⡟⠈⠁⠀⠀⠀⠀⠀⠀⢸⡗⠀⠀⠀⠀⠀⠀⠀⠀⢀⣾⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⣿⡾⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠃⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀⢸⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠸⣿⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠙⢿⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣼⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⡇⠀⠀⠀⠀⠀⠀⠀⠀⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠈⠹⢦⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣾⠟⠉⣿⡀⠀⠀⠀⠀⠀⠀⠀⢸⡿⣿⡀⠀⠀⠀⠀⠀⠀⠀⣿⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠈⠙⠲⢦⣤⣄⣀⣀⣠⣤⣴⠿⠛⠋⠁⠀⠈⢻⣧⠀⠀⠀⠀⠀⠀⠀⢸⡇⠸⣷⣀⠀⠀⠀⠀⣀⣼⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠉⠉⠉⠁⠀⠀⠀⠀⠀⠀⠀⠈⢿⣧⣀⣀⠀⣀⣀⣶⠏⠀⠀⠈⠻⠷⠶⣶⡾⠿⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠛⠛⠛⠛⠛⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀""")
         raise
 
 
