@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+
+import os
+import select
+import subprocess
+import sys
+import time
+
+import json
+import requests
+import vdf
+
+
+def switch_keymap(keymap):
+    subprocess.run(
+        f"ln -f -s {keymap} ~/keymaps/active.conf && keyd reload",
+        shell=True,
+        check=True,
+    )
+
+
+def get_info(appID):
+    ret = subprocess.run(
+        ["steamcmd", "+app_info_print", appID, "+exit"],
+        capture_output=True,
+        check=True
+    )
+
+    index = ret.stdout.find(ord('"'))
+    output = ret.stdout[index:].decode()
+    info = vdf.loads(output)
+
+    return info[appID]
+
+
+def get_images(appID):
+    if not os.path.exists(f"library_{appID}.jpg"):
+        url = f"https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{appID}/library_600x900_2x.jpg"
+        rsp = requests.get(url)
+        if rsp.status_code == 200:
+            with open(f"library_{appID}.jpg", "wb") as outfile:
+                outfile.write(rsp.content)
+
+    if not os.path.exists(f"bg_{appID}.jpg"):
+        url = f"https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{appID}/page_bg_raw.jpg"
+        rsp = requests.get(url)
+        if rsp.status_code == 200:
+            with open(f"bg_{appID}.jpg", "wb") as outfile:
+                outfile.write(rsp.content)
+
+
+def get_executable(info):
+    for execinfo in info['config']['launch'].values():
+        if execinfo.get('config', {}).get('oslist', '') == 'linux':
+            executable = execinfo['executable']
+            if executable.startswith("./"):
+                executable = executable[2:]
+            return executable
+
+    for execinfo in info['config']['launch'].values():
+        if execinfo.get('config', {}).get('oslist', None) in ('windows', None):
+            return execinfo['executable']
+
+    print("Couldn't find a suitable executable to run this game...?")
+    sys.exit(2)
+
+
+def load_or_fetch_info(appID):
+    if os.path.exists(f"{appID}.json"):
+        with open(f"{appID}.json", "r") as infile:
+            info = json.load(infile)
+    else:
+        info = get_info(appID)
+        with open(f"{appID}.json", "w") as outfile:
+            json.dump(info, outfile, indent=2)
+
+    get_images(appID)
+
+    return info
+
+
+def launch_wait(appID):
+    subprocess.run("clear", shell=True)
+    info = load_or_fetch_info(appID)
+
+    executable = get_executable(info)
+    print(f"Launching {info['common']['name']} ...")
+    subprocess.run(["steam", f"steam://rungameid/{appID}"])
+    print(f"Waiting for {executable} ...")
+
+    for i in range(60):
+        ret = subprocess.run(
+            f"ps ax -o pid,comm | grep -i {executable}",
+            shell=True,
+            capture_output=True,
+            check=False,
+        )
+        if ret.returncode:
+            print(f"\r{60-i} ...", end='')
+            time.sleep(1)
+            continue
+
+        pid = int(ret.stdout.decode().strip().split(" ")[0])
+
+        print("OK!")
+        break
+    else:
+        raise Exception("Game didn't launch?")
+
+    print(f"{pid=}")
+    print("Game executable running! Please enjoy =^_^=")
+    pidfd = os.pidfd_open(pid)
+    select.select([pidfd], [], [])
+    print("Game executable closed, returning you to the menu ...")
+
+
+def main():
+    appID = sys.argv[1]
+    keymap = sys.argv[2]
+
+    switch_keymap(keymap)
+    try:
+        launch_wait(appID)
+    finally:
+        switch_keymap("~/keymaps/default.conf")
+
+
+if __name__ == '__main__':
+    main()
