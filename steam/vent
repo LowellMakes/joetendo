@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from configparser import ConfigParser
 import datetime
 import json
 import os
@@ -253,16 +254,30 @@ def launch_wait(appID, rootdir):
         raise exc
 
     print("\nGame now running! Please enjoy =^_^=")
+
     pidfd = os.pidfd_open(pid)
+    running = True
+    signaled = False
 
     def handler(_sig, _frame):
-        LOG.debug("SIGTERM received (from exit button), forwarding to game process")
-        signal.pidfd_send_signal(pidfd, signal.SIGTERM)
+        LOG.debug("SIGTERM received from exit button")
+        if not signaled:
+            LOG.debug("Forwarding SIGTERM to game process")
+            signal.pidfd_send_signal(pidfd, signal.SIGTERM)
+            signaled = True
+        elif running:
+            LOG.debug("Forwarding SIGKILL to game process")
+            signal.pidfd_send_signal(pidfd, signal.SIGKILL)
 
     signal.signal(signal.SIGTERM, handler)
-    select.select([pidfd], [], [])
-    LOG.debug("Executable='%s' appID=%s pid=%s closed, exiting vent launcher", executable, appID, pid)
-    print("Game closed, returning you to the menu (｡･ω･｡)ﾉ♡")
+
+    while True:
+        ret = select.select([pidfd], [], [])
+        running = False
+        LOG.debug("Executable='%s' appID=%s pid=%s closed, exiting vent launcher", executable, appID, pid)
+        LOG.debug("ret=%s", str(ret))
+        print("Game closed, returning you to the menu (｡･ω･｡)ﾉ♡")
+        break
 
 
 def add_steam_system(config_path, steam_path):
@@ -292,6 +307,8 @@ def add_steam_system(config_path, steam_path):
 def external_tool_setup():
     global _HAVE_APT, _HAVE_DNF
 
+    os.environ['PATH'] = os.environ['PATH'] + ':/usr/games'
+
     try:
         ex("which", "apt")
         _HAVE_APT = True
@@ -309,13 +326,14 @@ def external_tool_setup():
         sys.exit(1)
 
     try:
-        ex("which", "wget")
-    except subprocess.CalledProcessError:
-        install("wget")
-
-    try:
         ex("which", "keyd")
     except subprocess.CalledProcessError:
+        try:
+            ex("which", "wget")
+        except subprocess.CalledProcessError:
+            ex("apt", "update", "-y")
+            install("wget")
+
         ex("wget", "https://api.github.com/repos/rvaiya/keyd/releases/latest", "-O", "keyd.json")
         with open("keyd.json", "rb") as infile:
             data = json.load(infile)
@@ -325,37 +343,51 @@ def external_tool_setup():
         ex("tar", "zxf", "keyd-latest.tar.gz", "-C", "keyd-latest", "--strip-components", "1")
         ex("make", "-C", "keyd-latest/")
         ex("make", "install", "-C", "keyd-latest/")
+        ex("rm", "keyd.json")
+        ex("rm", "keyd-latest.tar.gz")
+        ex("rm", "-rf", "keyd-latest/")
 
-    ex("systemctl", "enable", "keyd")
+    packages = []
 
     try:
         ex("which", "steam")
     except subprocess.CalledProcessError:
         ex("wget", "https://repo.steampowered.com/steam/archive/stable/steam_latest.deb")
-        ex("dpkg", "-i", "steam_latest.deb")
+        packages.append("./steam_latest.deb")
 
     try:
         ex("which", "steamcmd")
     except subprocess.CalledProcessError:
         ex("add-apt-repository", "-y", "multiverse")
+        subprocess.run('echo "steamcmd steam/license note" | debconf-set-selections', shell=True)
+        subprocess.run('echo "steamcmd steam/purge note" | debconf-set-selections', shell=True)
+        subprocess.run('echo "steamcmd steam/question select I AGREE" | debconf-set-selections', shell=True)
         ex("dpkg", "--add-architecture", "i386")
-        ex("apt", "update", "-y")
-        ex("apt", "install", "-y", "steamcmd")
+        packages.append("steamcmd")
 
     try:
         ex("which", "xfce4-terminal")
         ex("which", "xfconf-query")
     except subprocess.CalledProcessError:
-        install("xfce4-terminal")
+        packages.append("xfce4-terminal")
 
     if not _HAVE_REQUESTS:
-        install("python3-requests")
+        packages.append("python3-requests")
 
     if not _HAVE_VDF:
-        install("python3-vdf")
+        packages.append("python3-vdf")
+
+    if packages:
+        ex("apt", "update", "-y")
+        print(f"Installing: {', '.join(packages)}")
+        ex("apt", "install", "-y", *packages)
+
+    ex("apt", "update", "-y")
+    ex("apt", "install", "-y", "steam-libs-amd64:amd64")
 
 
-def first_run_setup(keymapdir):
+def first_run_setup(user, homedir, keymapdir):
+    ex("systemctl", "restart", "systemd-timesyncd")
     external_tool_setup()
 
     # Point /etc/keyd/default.conf to {active_link}
@@ -367,14 +399,44 @@ def first_run_setup(keymapdir):
     default_map = os.path.join(keymapdir, "default.conf")
     mklink(active_link, default_map)
 
-    rootdir = os.path.expanduser("~/RetroPie/steam/")
-    add_steam_system("/etc/emulationstation/es_systems.cfg", os.path.join(rootdir, "menu"))
+    with open(default_map, "w") as outfile:
+        outfile.write("# This space for rent!\n")
 
-    # install the default keymapping config
+    menudir = os.path.join(homedir, "RetroPie/steam/menu")
+    add_steam_system("/etc/emulationstation/es_systems.cfg", menudir)
+    os.makedirs(menudir, exist_ok=True)
+
+    # Add the kiosk user to the 'keyd' group for rootless access to 'keyd reload'
+    ex("systemctl", "enable", "keyd")
+    ex("usermod", "-aG", "keyd", user)
+
+    # Prime steamcmd and fetch updates from valve, etc.
+    ex("su", "-c", "steamcmd +exit", "-", user)
+
+    # Prime the steam client itself
+    # FIXME: This is broken, steam segfaults when launched this way...
+    proc = subprocess.Popen(["su", "-c", "steam", "-", user])
+    ex("su", "-c", "steam -shutdown", "-", user)
+    proc.wait()
+
+    # Modify the autostart entry for RetroPie to launch the "kiosk"
+    # launcher which will in turn launch steam and emulationstation
+    # both.
+    cfg_file = f"{homedir}/.config/autostart/retropie.desktop"
+    if os.path.exists(cfg_file):
+        cfg = ConfigParser()
+        cfg.read(cfg_file)
+        cfg['Desktop Entry']['Exec'] = (
+            'xfce4-terminal --fullscreen --maximize --hide-menubar'
+            ' --hide-borders --hide-toolbar --hide-scrollbar'
+            '--execute kiosk'
+        )
+        with open(cfg_file, "w") as outfile:
+            cfg.write(outfile)
+
+    # install the 'common' keymapping config
     # install the 'vent' script into place
     # install the 'kiosk' script into place
-    # replace the ES autoboot with kiosk/xfce4-terminal autoboot
-    # add kiosk user to keyd group to be able to execute 'keyd reload'
 
 
 def do_launch(active_link, keymap, appID, steam_root, default_map):
@@ -394,26 +456,29 @@ def do_main():
         # TODO: use 'whoami'?
         raise Exception("Failed to determine who is running this script. Who are you?")
 
-    appID = sys.argv[1]
-
     home = Path(os.path.expanduser(f"~{user}"))
     rp_root = home.joinpath("RetroPie")
     steam_root = rp_root.joinpath("steam")
     keymap_dir = steam_root.joinpath("keymaps")
     active_link = keymap_dir.joinpath("active.conf")
     default_map = keymap_dir.joinpath("default.conf")
-    keymap = keymap_dir.joinpath(f"{appID}.conf")
 
     os.makedirs(keymap_dir, exist_ok=True)
 
-    LOG.debug("> vent %s", appID)
-    LOG.debug("    steam_root=%s", steam_root)
-    LOG.debug("    keymap=%s", keymap)
-    LOG.debug("    active_link=%s", active_link)
-    LOG.debug("    default_map=%s", default_map)
-    LOG.debug("    appID=%s", appID)
+    if len(sys.argv) == 1:
+        first_run_setup(user, home, keymap_dir)
+    else:
+        appID = sys.argv[1]
+        keymap = keymap_dir.joinpath(f"{appID}.conf")
 
-    do_launch(active_link, keymap, appID, steam_root, default_map)
+        LOG.debug("> vent %s", appID)
+        LOG.debug("    steam_root=%s", steam_root)
+        LOG.debug("    keymap=%s", keymap)
+        LOG.debug("    active_link=%s", active_link)
+        LOG.debug("    default_map=%s", default_map)
+        LOG.debug("    appID=%s", appID)
+
+        do_launch(active_link, keymap, appID, steam_root, default_map)
 
 
 def configure_logging():
