@@ -205,6 +205,7 @@ def launch_wait(appID, rootdir):
 
     info = load_or_fetch_info(appID, cachedir)
     executable = get_executable(info)
+    game = info.get('common', {}).get('name', '?????')
 
     img = None
     bgimg = os.path.join(cachedir, f"bg_{appID}.jpg")
@@ -215,9 +216,14 @@ def launch_wait(appID, rootdir):
         img = libimg
     configure_splash(img)
 
-    LOG.info("Launching %s; appID=%s", appID, info['common']['name'])
+    LOG.info(
+        "Launching appID=%s; game='%s'; executable='%s';",
+        appID, game, executable
+    )
 
-    print(f"Launching {info['common']['name']} ... ..", end='')
+    print(f"Launching {game} ... ..", end='')
+    sys.stdout.flush()
+
     ex("steam", f"steam://rungameid/{appID}")
     LOG.debug("Waiting for executable '%s'", executable)
 
@@ -231,21 +237,29 @@ def launch_wait(appID, rootdir):
         )
         if ret.returncode:
             print(f"\b\b\b{60-i:2d}", end='')
+            sys.stdout.flush()
             time.sleep(1)
             continue
 
         pid = int(ret.stdout.decode().strip().split(" ")[0])
-        LOG.debug("Executable running: appID=%s executable=%s pid=%s", appID, executable, pid)
+        LOG.debug(
+            "Executable running: appID=%s; game='%s'; executable='%s'; pid=%s",
+            appID,
+            game,
+            executable,
+            pid,
+        )
         break
     else:
         print("")
         LOG.error(
-            "Timed out waiting for appID=%s executable=%s",
+            "Timed out waiting for appID=%s; game='%s'; executable='%s'",
             appID,
-            executable
+            game,
+            executable,
         )
         exc = Exception(
-            f"Timed out waiting for {executable=} {appID=}"
+            f"Timed out waiting for {appID=} {game=} {executable=}"
         )
         exc.add_note(
             "System may be in an unusable state. "
@@ -253,7 +267,8 @@ def launch_wait(appID, rootdir):
         )
         raise exc
 
-    print("\nGame now running! Please enjoy =^_^=")
+    print("")
+    print("Game now running! Please enjoy =^_^=")
 
     pidfd = os.pidfd_open(pid)
     running = True
@@ -268,7 +283,13 @@ def launch_wait(appID, rootdir):
     while True:
         ret = select.select([pidfd], [], [])
         running = False
-        LOG.debug("Executable='%s' appID=%s pid=%s closed, exiting vent launcher", executable, appID, pid)
+        LOG.debug(
+            "appID=%s; game='%s'; executable='%s'; pid=%s closed, exiting vent launcher",
+            appID,
+            game,
+            executable,
+            pid,
+        )
         LOG.debug("ret=%s", str(ret))
         print("Game closed, returning you to the menu (｡･ω･｡)ﾉ♡")
         break
