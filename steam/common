@@ -1,0 +1,36 @@
+# keyd common keymap file
+# place in /etc/keyd/common
+
+[ids]
+
+d208:0310:bc611fc2
+
+[aliases]
+
+up =          p1_up
+down =        p1_down
+left =        p1_left
+right =       p1_right
+leftshift =   p1_1
+z =           p1_2
+x =           p1_3
+leftcontrol = p1_4
+leftalt =     p1_5
+space =       p1_6
+1 =           p1_select
+5 =           p1_start
+
+r =           p2_up
+f =           p2_down
+d =           p2_left
+g =           p2_right
+w =           p2_1
+i =           p2_2
+k =           p2_3
+a =           p2_4
+s =           p2_5
+q =           p2_6
+2 =           p2_select
+6 =           p2_start
+
+c =           exit
