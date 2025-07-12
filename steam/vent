@@ -257,17 +257,11 @@ def launch_wait(appID, rootdir):
 
     pidfd = os.pidfd_open(pid)
     running = True
-    signaled = False
 
     def handler(_sig, _frame):
         LOG.debug("SIGTERM received from exit button")
-        if not signaled:
-            LOG.debug("Forwarding SIGTERM to game process")
-            signal.pidfd_send_signal(pidfd, signal.SIGTERM)
-            signaled = True
-        elif running:
-            LOG.debug("Forwarding SIGKILL to game process")
-            signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+        LOG.debug("Forwarding SIGTERM to game process")
+        signal.pidfd_send_signal(pidfd, signal.SIGTERM)
 
     signal.signal(signal.SIGTERM, handler)
 
