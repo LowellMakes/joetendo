@@ -236,7 +236,7 @@ def launch_wait(appID, rootdir):
             check=False,
         )
         if ret.returncode:
-            print(f"\b\b\b{60-i:2d}", end='')
+            print(f"\b\b{60-i:2d}", end='')
             sys.stdout.flush()
             time.sleep(1)
             continue
