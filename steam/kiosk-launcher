@@ -1,0 +1,10 @@
+#!/usr/bin/bash
+
+xfce4-terminal \
+    --fullscreen \
+    --maximize \
+    --hide-menubar \
+    --hide-borders \
+    --hide-scrollbar \
+    -x \
+    kiosk

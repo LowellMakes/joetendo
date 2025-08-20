@@ -1,7 +1,14 @@
 #!/usr/bin/bash
+
 ln -f -s ~/RetroPie/steam/keymaps/default.conf ~/RetroPie/steam/keymaps/active.conf
 keyd reload
+
+echo "Launching steam ..."
 steam -nochat -nopopup -silent >/dev/null 2>&1 &
+sleep 10
+
+echo "Launching emulationstation ..."
 emulationstation --force-kiosk --no-exit
+
 ln -f -s ~/RetroPie/steam/keymaps/default.conf ~/RetroPie/steam/keymaps/active.conf
 keyd reload
