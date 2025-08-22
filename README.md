@@ -12,7 +12,10 @@ which is no longer sold. The iPAC2 is the current iteration of the
 product: https://www.ultimarc.com/control-interfaces/i-pacs/i-pac2/
 
 The majority of bespoke customizations made to RetroPie/EmulationStation
-on the Joetendo are in the form of the "vent" steam launcher script.
+on the Joetendo are in the form of the "vent" steam launcher script,
+which can launch selectively configured steam games from the LowellMakes
+steam account.
+
 Other notable tweaks from the "default" are:
 
   - GNOME hotkeys have been disabled to prevent arcade controls from
@@ -56,11 +59,13 @@ nago on basecamp and give them your public SSH key for access.
   call "vent %appID%". emulationstation learns the name of the game from
   the name of the shell script file.
 
+- `steam/common` is the common keymap configuration file; it assigns
+  aliases to the keypresses for easy reconfiguration in per-game config
+  files.
+
 - `steam/keymaps` are the keymap configuration files for each steam
-  game. At the moment, the "common" configuration file is missing and
-  will be added to the repository later. They are named after the appID
-  for the steam application, which is a little annoying, but very easy
-  to code for.
+  game. They are named after the appID for the steam application, which
+  is a little annoying, but very easy to code for.
 
 - `killswitch/code.py` is a CircuitPython program written for the
   Raspberry Pi Pico that emulates a keyboard device that when its single
@@ -72,14 +77,15 @@ nago on basecamp and give them your public SSH key for access.
 
 # Deployment
 
-As of time of writing (2025-07-10), these files are manually synced to
+As of time of writing (2025-08-22), these files are manually synced to
 the joetendo and there is no "installer" or script to synchronize
 them. On the joetendo cabinet, these files are located at:
 
 - `kiosk` is at `/home/nago/bin/kiosk`
 - `vent` is at `/home/nago/bin/vent`
-- `steam/*` is at `/home/nago/RetroPie/steam`, including the `menu` and
-  `keymaps` subdirectories.
+- `steam/menu` is at `/home/nago/RetroPie/steam/menu`
+- `steam/keymaps` is at `/home/nago/RetroPie/steam/keymaps`
+- `steam/common` is installed to `/etc/keyd/common`
 
 EmulationStation configuration is in
 `/etc/emulationstation/es_systems.cfg`, to which we have added a custom
@@ -110,10 +116,6 @@ solidifies, I hope to automate installation and synchronization so that
 new steam games can be added via the git repository, and switch the
 "nago" user to two separate accounts, "maker" for administration tasks
 and "kiosk" as the unprivileged runtime account that powers the cabinet.
-
-I also intend to switch the loaded steam account from my *personal*
-account to the LowellMakes community account, allowing for
-community-driven maintenance and game curation for the joetendo cabinet.
 
 Discussion and planning should occur primarily via the "Arcade and Video
 Games" basecamp: https://3.basecamp.com/3376147/projects/1248767
