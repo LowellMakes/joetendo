@@ -8,7 +8,8 @@ apt install -y \
     figlet \
     make \
     gcc \
-    python-is-python3
+    python-is-python3 \
+    libpugixml-dev
 
 adduser --comment "kiosk,,," --disabled-password kiosk
 adduser --comment "maker,,," --disabled-password maker
