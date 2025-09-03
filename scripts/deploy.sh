@@ -31,7 +31,7 @@ xmlstarlet ed -L -s "/gameList/game" -t "elem" -n "hidden" -v "true" \
 
 # Patch the runcommand script to disable the menu when the ES_KIOSK_MODE
 # environment variable is present
-patch /opt/retropie/supplementary/runcommand.sh <<EOF
+patch /opt/retropie/supplementary/runcommand/runcommand.sh <<EOF
 --- runcommand.sh	2025-09-03 00:42:58.864857056 -0400
 +++ runcommand.sh	2025-09-03 00:51:05.335083012 -0400
 @@ -130,6 +130,10 @@
@@ -153,6 +153,11 @@ edge-tiling=false
 [org/gnome/desktop/session]
 idle-delay=uint32 0
 EOF
+
+# Download and install a figlet font for use with text banners, for funsies
+wget http://www.figlet.org/fonts/colossal.flf
+install --mode=644 colossal.flf /usr/share/figlet/
+
 
 #- apply the correct key configurations to emulationstation, retroarch, etc.
 # /opt/retropie/configs/all/emulationstation/es_input.cfg
