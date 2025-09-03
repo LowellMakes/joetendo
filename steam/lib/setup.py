@@ -240,6 +240,7 @@ def first_run_setup(config):
     # FIXME: This is broken, steam segfaults when launched this way...
     # proc = subprocess.Popen(["su", "-c", "steam", "-", config.user])
     # ex("su", "-c", "steam -shutdown", "-", config.user)
+    ex("sudo", "-u", config.user, "steam", "-shutdown")
     # proc.wait()
 
     # Modify the autostart entry for RetroPie to launch the "kiosk"

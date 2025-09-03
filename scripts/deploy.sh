@@ -81,7 +81,7 @@ EOF
 
 # Disable various hotkeys so they don't get accidentally triggered by
 # arcade cabinet controls
-sudo -u ${JOETENDO_USER} dconf load '/' <<"EOF"
+DCONF_PROFILE=/home/${JOETENDO_USER} dconf load '/' <<"EOF"
 [org/gnome/desktop/wm/keybindings]
 activate-window-menu=@as []
 begin-move=@as []
