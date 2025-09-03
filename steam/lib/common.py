@@ -141,9 +141,17 @@ class Configuration:
 
 
 def get_configuration():
-    user = os.environ.get("SUDO_USER")
-    if not user:
-        user = os.environ.get("USER")
+    user = os.environ.get(
+        "__user",
+        os.environ.get(
+            "SUDO_USER",
+            os.environ.get(
+                "USER",
+                None
+            )
+        )
+    )
+
     if not user:
         # TODO: use 'whoami'?
         raise Exception("Failed to determine who is running this script. Who are you?")

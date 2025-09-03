@@ -46,13 +46,13 @@ popd
 pushd EmulationStation
 cmake .
 make
-make install
+install --mode=755 emulationstation /opt/retropie/supplementary/emulationstation/
 popd
 
 # Perform installation of the steam game launcher addon for
 # RetroPie/EmulationStation.
 pushd joetendo/steam/lib
-python3 setup.py
+__user=${JOETENDO_USER} python3 setup.py
 popd
 
 popd

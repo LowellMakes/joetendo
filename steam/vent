@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from configparser import ConfigParser
 import datetime
 import json
 import os
@@ -11,31 +10,14 @@ import signal
 import subprocess
 import sys
 import time
-from xml.etree import ElementTree
-
 import logging
 from logging.handlers import SysLogHandler
 
+import requests
+import vdf
+
+
 LOG = logging.getLogger('vent')
-
-
-_HAVE_REQUESTS = False
-try:
-    import requests
-    _HAVE_REQUESTS = True
-except ModuleNotFoundError:
-    pass
-
-_HAVE_VDF = False
-try:
-    import vdf
-    _HAVE_VDF = True
-except ModuleNotFoundError:
-    pass
-
-
-_HAVE_APT = False
-_HAVE_DNF = False
 
 
 def ex(*args, check=True, capture_output=False):
@@ -47,13 +29,6 @@ def ex(*args, check=True, capture_output=False):
     except subprocess.CalledProcessError:
         LOG.exception("subprocess failed")
         raise
-
-
-def install(*args):
-    if _HAVE_APT:
-        ex('apt', 'install', '-y', *args)
-    elif _HAVE_DNF:
-        ex('dnf', 'install', '-y', *args)
 
 
 def mklink(source, dest):
@@ -295,165 +270,6 @@ def launch_wait(appID, rootdir):
         break
 
 
-def add_steam_system(config_path, steam_path):
-    tree = ElementTree.parse(config_path)
-    root = tree.getroot()
-
-    if root.findall('system/name[.="steam"]'):
-        return
-
-    node = ElementTree.fromstring(f"""
-    <system>
-      <name>steam</name>
-      <fullname>Steam</fullname>
-      <path>{steam_path}</path>
-      <extension>.sh</extension>
-      <command>%ROM%</command>
-      <platform>steam</platform>
-      <theme>steam</theme>
-    </system>
-    """)
-
-    root.append(node)
-    ElementTree.indent(tree)
-    tree.write(config_path)
-
-
-def external_tool_setup():
-    global _HAVE_APT, _HAVE_DNF
-
-    os.environ['PATH'] = os.environ['PATH'] + ':/usr/games'
-
-    try:
-        ex("which", "apt")
-        _HAVE_APT = True
-    except subprocess.CalledProcessError:
-        pass
-
-    try:
-        ex("which", "dnf")
-        _HAVE_DNF = True
-    except subprocess.CalledProcessError:
-        pass
-
-    if not (_HAVE_APT or _HAVE_DNF):
-        print("This setup script is intended for apt/dnf-based systems only", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        ex("which", "keyd")
-    except subprocess.CalledProcessError:
-        try:
-            ex("which", "wget")
-        except subprocess.CalledProcessError:
-            ex("apt", "update", "-y")
-            install("wget")
-
-        ex("wget", "https://api.github.com/repos/rvaiya/keyd/releases/latest", "-O", "keyd.json")
-        with open("keyd.json", "rb") as infile:
-            data = json.load(infile)
-            url = data['tarball_url']
-        ex("wget", url, "-O", "keyd-latest.tar.gz")
-        os.mkdir("keyd-latest")
-        ex("tar", "zxf", "keyd-latest.tar.gz", "-C", "keyd-latest", "--strip-components", "1")
-        ex("make", "-C", "keyd-latest/")
-        ex("make", "install", "-C", "keyd-latest/")
-        ex("rm", "keyd.json")
-        ex("rm", "keyd-latest.tar.gz")
-        ex("rm", "-rf", "keyd-latest/")
-
-    packages = []
-
-    try:
-        ex("which", "steam")
-    except subprocess.CalledProcessError:
-        ex("wget", "https://repo.steampowered.com/steam/archive/stable/steam_latest.deb")
-        packages.append("./steam_latest.deb")
-
-    try:
-        ex("which", "steamcmd")
-    except subprocess.CalledProcessError:
-        ex("add-apt-repository", "-y", "multiverse")
-        subprocess.run('echo "steamcmd steam/license note" | debconf-set-selections', shell=True)
-        subprocess.run('echo "steamcmd steam/purge note" | debconf-set-selections', shell=True)
-        subprocess.run('echo "steamcmd steam/question select I AGREE" | debconf-set-selections', shell=True)
-        ex("dpkg", "--add-architecture", "i386")
-        packages.append("steamcmd")
-
-    try:
-        ex("which", "xfce4-terminal")
-        ex("which", "xfconf-query")
-    except subprocess.CalledProcessError:
-        packages.append("xfce4-terminal")
-
-    if not _HAVE_REQUESTS:
-        packages.append("python3-requests")
-
-    if not _HAVE_VDF:
-        packages.append("python3-vdf")
-
-    if packages:
-        ex("apt", "update", "-y")
-        print(f"Installing: {', '.join(packages)}")
-        ex("apt", "install", "-y", *packages)
-
-    ex("apt", "update", "-y")
-    ex("apt", "install", "-y", "steam-libs-amd64:amd64")
-
-
-def first_run_setup(user, homedir, keymapdir):
-    ex("systemctl", "restart", "systemd-timesyncd")
-    external_tool_setup()
-
-    # Point /etc/keyd/default.conf to {active_link}
-    # We do this so we have permission to change the active conf without root!
-    active_link = os.path.join(keymapdir, "active.conf")
-    mklink("/etc/keyd/default.conf", active_link)
-
-    # Point active.conf to our (user-owned) default.conf
-    default_map = os.path.join(keymapdir, "default.conf")
-    mklink(active_link, default_map)
-
-    with open(default_map, "w") as outfile:
-        outfile.write("# This space for rent!\n")
-
-    menudir = os.path.join(homedir, "RetroPie/steam/menu")
-    add_steam_system("/etc/emulationstation/es_systems.cfg", menudir)
-    os.makedirs(menudir, exist_ok=True)
-
-    # Add the kiosk user to the 'keyd' group for rootless access to 'keyd reload'
-    ex("systemctl", "enable", "keyd")
-    ex("usermod", "-aG", "keyd", user)
-
-    # Prime steamcmd and fetch updates from valve, etc.
-    ex("su", "-c", "steamcmd +exit", "-", user)
-
-    # Prime the steam client itself
-    # FIXME: This is broken, steam segfaults when launched this way...
-    proc = subprocess.Popen(["su", "-c", "steam", "-", user])
-    ex("su", "-c", "steam -shutdown", "-", user)
-    proc.wait()
-
-    # Modify the autostart entry for RetroPie to launch the "kiosk"
-    # launcher which will in turn launch steam and emulationstation
-    # both.
-    cfg_file = f"{homedir}/.config/autostart/retropie.desktop"
-    if os.path.exists(cfg_file):
-        cfg = ConfigParser()
-        cfg.read(cfg_file)
-        cfg['Desktop Entry']['Exec'] = (
-            'xfce4-terminal --fullscreen --maximize --hide-menubar'
-            ' --hide-borders --hide-toolbar --hide-scrollbar'
-            '--execute kiosk'
-        )
-        with open(cfg_file, "w") as outfile:
-            cfg.write(outfile)
-
-    # install the 'common' keymapping config
-    # install the 'vent' script into place
-    # install the 'kiosk' script into place
-
-
 def do_launch(active_link, keymap, appID, steam_root, default_map):
     switch_keymap(str(active_link), str(default_map), str(keymap))
     try:
@@ -480,9 +296,7 @@ def do_main():
 
     os.makedirs(keymap_dir, exist_ok=True)
 
-    if len(sys.argv) == 1:
-        first_run_setup(user, home, keymap_dir)
-    else:
+    if len(sys.argv) > 1:
         appID = sys.argv[1]
         keymap = keymap_dir.joinpath(f"{appID}.conf")
 
