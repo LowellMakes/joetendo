@@ -38,6 +38,7 @@ popd
 # Build and install RetroPie + EmulationStation
 pushd RetroPie-Setup
 __user=${JOETENDO_USER} ./retropie_packages.sh setup basic_install
+__user=${JOETENDO_USER} ./retropie_packages.sh lr-mame
 popd
 
 # Build and install the LowellMakes fork of EmulationStation, which
