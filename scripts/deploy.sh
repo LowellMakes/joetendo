@@ -2,7 +2,7 @@
 
 set -e
 
-apt install -y git openssh-server figlet make
+apt install -y git openssh-server figlet make gcc
 adduser --comment "kiosk,,," --disabled-password kiosk
 adduser --comment "maker,,," --disabled-password maker
 echo -e "kiosk:kiosk\nmaker:maker" | chpasswd
