@@ -2,19 +2,25 @@
 
 set -e
 
+# The unprivileged user who will run the kiosk application; not
+# necessarily who is running this script - and in fact, probably not,
+# since you need sudo to run this script!
+JOETENDO_USER=kiosk
+
 apt install -y \
-    git \
-    openssh-server \
-    figlet \
-    make \
-    gcc \
-    python-is-python3 \
-    libpugixml-dev
+    git \                # for 'git clone', below
+    openssh-server \     # for enabling remote access for administration
+    figlet \             # for fun!
+    make \               # for compiling 'lolcat', for fun
+    gcc \                # for compiling 'lolcat', for fun
+    python-is-python3 \  # for compiling 'lolcat', for fun
+    libpugixml-dev       # for compiling LM's EmulationStation fork
 
-adduser --comment "kiosk,,," --disabled-password kiosk
+adduser --comment "${JOETENDO_USER},,," --disabled-password ${JOETENDO_USER}
 adduser --comment "maker,,," --disabled-password maker
-echo -e "kiosk:kiosk\nmaker:maker" | chpasswd
+echo -e "${JOETENDO_USER}:${JOETENDO_USER}\nmaker:maker" | chpasswd
 
+cd ~
 mkdir -p src
 
 pushd src
@@ -31,7 +37,7 @@ popd
 
 # Build and install RetroPie + EmulationStation
 pushd RetroPie-Setup
-__user=kiosk ./retropie_packages.sh setup basic_install
+__user=${JOETENDO_USER} ./retropie_packages.sh setup basic_install
 popd
 
 # Build and install the LowellMakes fork of EmulationStation, which
@@ -75,7 +81,7 @@ EOF
 
 # Disable various hotkeys so they don't get accidentally triggered by
 # arcade cabinet controls
-dconf load '/' <<"EOF"
+sudo -u ${JOETENDO_USER} dconf load '/' <<"EOF"
 [org/gnome/desktop/wm/keybindings]
 activate-window-menu=@as []
 begin-move=@as []
@@ -196,6 +202,6 @@ install --mode=644 colossal.flf /usr/share/figlet/
 #</inputList>
 
 #- change the various settings in emulationstation accordingly
-# download the lowellmakes fork of emulationstation and install it
-# fix all the various permissions issues here
-# run the joetendo steam plugin installer thingie
+
+# - set kiosk user to autologin
+# - run 'steam' client to finalize installation and log in (manual process)
