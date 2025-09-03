@@ -22,6 +22,11 @@ popd
 pushd RetroPie-Setup
 __user=kiosk ./retropie_packages.sh setup basic_install
 popd
+
+pushd joetendo/steam/lib
+python3 setup.py
+popd
+
 popd
 
 # Update the RetroPie menu items to be "hidden", so they do not appear
