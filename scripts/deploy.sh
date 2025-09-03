@@ -2,7 +2,14 @@
 
 set -e
 
-apt install -y git openssh-server figlet make gcc
+apt install -y \
+    git \
+    openssh-server \
+    figlet \
+    make \
+    gcc \
+    python-is-python3
+
 adduser --comment "kiosk,,," --disabled-password kiosk
 adduser --comment "maker,,," --disabled-password maker
 echo -e "kiosk:kiosk\nmaker:maker" | chpasswd
