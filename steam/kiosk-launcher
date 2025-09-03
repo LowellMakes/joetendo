@@ -5,6 +5,7 @@ xfce4-terminal \
     --maximize \
     --hide-menubar \
     --hide-borders \
+    --hide-toolbar \
     --hide-scrollbar \
     -x \
     kiosk
