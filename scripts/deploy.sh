@@ -11,18 +11,31 @@ mkdir -p src
 
 pushd src
 git clone --depth=1 https://github.com/RetroPie/RetroPie-Setup.git
-git clone https://github.com/LowellMakes/joetendo.git
 git clone https://github.com/jaseg/lolcat.git
+git clone https://github.com/LowellMakes/joetendo.git
+git clone https://github.com/LowellMakes/EmulationStation.git
 
+# For fun O:-)
 pushd lolcat
 make
 make install
 popd
 
+# Build and install RetroPie + EmulationStation
 pushd RetroPie-Setup
 __user=kiosk ./retropie_packages.sh setup basic_install
 popd
 
+# Build and install the LowellMakes fork of EmulationStation, which
+# locks down more features in "kiosk" mode compared to the RetroPie fork
+pushd EmulationStation
+cmake .
+make
+make install
+popd
+
+# Perform installation of the steam game launcher addon for
+# RetroPie/EmulationStation.
 pushd joetendo/steam/lib
 python3 setup.py
 popd
