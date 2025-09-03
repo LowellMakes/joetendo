@@ -8,13 +8,13 @@ set -e
 JOETENDO_USER=kiosk
 
 apt install -y \
-    git \                # for 'git clone', below
-    openssh-server \     # for enabling remote access for administration
-    figlet \             # for fun!
-    make \               # for compiling 'lolcat', for fun
-    gcc \                # for compiling 'lolcat', for fun
-    python-is-python3 \  # for compiling 'lolcat', for fun
-    libpugixml-dev       # for compiling LM's EmulationStation fork
+    git \
+    openssh-server \
+    figlet \
+    make \
+    gcc \
+    python-is-python3 \
+    libpugixml-dev
 
 adduser --comment "${JOETENDO_USER},,," --disabled-password ${JOETENDO_USER}
 adduser --comment "maker,,," --disabled-password maker
