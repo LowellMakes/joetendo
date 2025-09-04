@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from configparser import ConfigParser
+from configparser import RawConfigParser
 import json
 import logging
 import os
@@ -246,7 +246,9 @@ def first_run_setup(config):
     # Modify the autostart entry for RetroPie to launch the "kiosk"
     # launcher which will in turn launch steam and emulationstation
     # both.
-    cfg = ConfigParser()
+    cfg = RawConfigParser()
+    cfg.optionxform = lambda option: option
+
     if config.autostart_config.exists():
         cfg.read(config.autostart_config)
         cfg['Desktop Entry']['Exec'] = 'kiosk-launcher'
@@ -257,10 +259,10 @@ def first_run_setup(config):
             'Hidden': 'false',
             'NoDisplay': 'false',
             'X-GNOME-Autostart-enabled': 'true',
-            'Name[de_DE]': 'RetroPie',
-            'Name': 'rpie',
-            'Comment[de_DE]': 'RetroPie',
-            'Comment': 'retropie',
+            'Name[en_US]': 'RetroPie',
+            'Name': 'RetroPie',
+            'Comment[en_US]': 'RetroPie',
+            'Comment': 'RetroPie',
             'Icon': '/usr/local/share/icons/retropie.svg',
             'Categories': 'Game',
         }

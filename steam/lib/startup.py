@@ -6,6 +6,21 @@ from common import ex, switch_keymap, get_configuration
 from lolfiglet import lolfiglet
 
 
+def do_kiosk():
+    proc = subprocess.Popen(
+        ["steam", "-nochat", "-nopopup", "-silent"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    try:
+        lolfiglet("NOW LOADING")
+        #print("Launching emulationstation ...")
+        ex("emulationstation", "--force-kiosk", "--no-exit")
+    finally:
+        proc.terminate()
+
+
 def kiosk():
     config = get_configuration()
 
@@ -15,21 +30,14 @@ def kiosk():
         config.default_keymap
     )
 
-    proc = subprocess.Popen(
-        ["steam", "-nochat", "-nopopup", "-silent"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    lolfiglet("NOW LOADING")
-
-    #print("Launching emulationstation ...")
-    ex("emulationstation", "--force-kiosk", "--no-exit")
-
-    switch_keymap(
-        config.active_keymap,
-        config.default_keymap,
-        config.default_keymap
-    )
+    try:
+        do_kiosk()
+    finally:
+        switch_keymap(
+            config.active_keymap,
+            config.default_keymap,
+            config.default_keymap
+        )
 
 
 def kiosk_launcher():
@@ -40,6 +48,7 @@ def kiosk_launcher():
         "--hide-menubar",
         "--hide-borders",
         "--hide-toolbar",
+        "--hide-scrollbar",
         "-x",
         "kiosk"
     )
