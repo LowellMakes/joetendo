@@ -201,8 +201,32 @@ install --mode=644 colossal.flf /usr/share/figlet/
 #    <command>/opt/retropie/supplementary/emulationstation/scripts/inputconfiguration.sh</command>
 #  </inputAction>
 #</inputList>
-
 #- change the various settings in emulationstation accordingly
 
-# - set kiosk user to autologin
-# - run 'steam' client to finalize installation and log in (manual process)
+python3 <<EOF
+import configparser
+
+config = configparser.ConfigParser()
+config.read("/etc/gdm3/custom.conf")
+config.setdefault('daemon', {})
+config['daemon']['AutomaticLoginEnable'] = 'True'
+config['daemon']['AutomaticLogin'] = '${JOETENDO_USER}'
+
+with open("/etc/gdm3/custom.conf", "w") as outfile:
+    config.write(outfile)
+EOF
+
+# Run steam to finish installation, hopefully maybe?
+xhost SI:localuser:${JOETENDO_USER}
+pkexec --user ${JOETENDO_USER} \
+       env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY \
+       exec dbus-run-session -- steam -shutdown
+xhost -
+
+# set kiosk user to autologin
+#SYSTEMD_EDITOR=tee systemctl edit getty@tty1.service <<EOF
+#[Service]
+#ExecStart=
+#ExecStart=-/sbin/agetty --noissue --autologin ${JOETENDO_USER} %I \$TERM
+#Type=idle
+#EOF
