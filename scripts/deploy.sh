@@ -220,7 +220,7 @@ EOF
 xhost SI:localuser:${JOETENDO_USER}
 pkexec --user ${JOETENDO_USER} \
        env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY \
-       exec dbus-run-session -- steam -shutdown
+       dbus-run-session -- steam -shutdown
 xhost -
 
 # set kiosk user to autologin
