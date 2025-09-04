@@ -5,12 +5,11 @@ import random
 import sys
 
 
-def lolfiglet(message, fontname=None, duration=10, delay=0.025):
-    if fontname is None:
-        fonts = os.listdir(os.path.expanduser("~/.local/share/figlet/"))
-        fontname = os.path.basename(random.choice(fonts))
-
-    font = f"~/.local/share/figlet/{fontname}"
+def lolfiglet(message, font=None, duration=10, delay=0.025):
+    if font is None:
+        fonts = os.listdir(os.path.expanduser("/usr/share/figlet/"))
+        fonts = [f for f in fonts if f.endswith(".flf")]
+        font = os.path.basename(random.choice(fonts))
 
     ret = subprocess.run(
         f'figlet -ktc "{message}" -f {font}',
