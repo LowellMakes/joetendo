@@ -14,7 +14,8 @@ apt install -y \
     make \
     gcc \
     python-is-python3 \
-    libpugixml-dev
+    libpugixml-dev \
+    crudini
 
 adduser --comment "${JOETENDO_USER},,," --disabled-password ${JOETENDO_USER}
 adduser --comment "maker,,," --disabled-password maker
@@ -203,30 +204,13 @@ install --mode=644 colossal.flf /usr/share/figlet/
 #</inputList>
 #- change the various settings in emulationstation accordingly
 
-python3 <<EOF
-import configparser
+crudini --set /etc/gdm3/custom.conf daemon AutomaticLoginEnable True
+crudini --set /etc/gdm3/custom.conf daemon AutomaticLogin ${JOETENDO_USER}
 
-config = configparser.ConfigParser()
-config.read("/etc/gdm3/custom.conf")
-config.setdefault('daemon', {})
-config['daemon']['AutomaticLoginEnable'] = 'True'
-config['daemon']['AutomaticLogin'] = '${JOETENDO_USER}'
-
-with open("/etc/gdm3/custom.conf", "w") as outfile:
-    config.write(outfile)
-EOF
-
-# Run steam to finish installation, hopefully maybe?
+# Run steam to finish installation; updates client and asks human
+# attendant to log in :)
 xhost SI:localuser:${JOETENDO_USER}
 pkexec --user ${JOETENDO_USER} \
        env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY \
        dbus-run-session -- steam -shutdown
 xhost -
-
-# set kiosk user to autologin
-#SYSTEMD_EDITOR=tee systemctl edit getty@tty1.service <<EOF
-#[Service]
-#ExecStart=
-#ExecStart=-/sbin/agetty --noissue --autologin ${JOETENDO_USER} %I \$TERM
-#Type=idle
-#EOF

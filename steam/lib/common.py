@@ -13,7 +13,7 @@ import subprocess
 LOG = logging.getLogger('vent')
 
 
-def ex(*args, check=True, capture_output=False):
+def ex(*args, check=True, capture_output=False, stdout=None, stderr=None):
     cmd = " ".join(shlex.quote(arg) for arg in args)
     LOG.debug("exec> %s", cmd)
     try:
@@ -32,6 +32,31 @@ def have_binary(name):
 def mklink(source, dest):
     ex("ln", "-f", "-s", str(dest), str(source))
 
+
+def switch_keymap(active_link, default_link, keymap):
+    try:
+        ex("systemctl", "is-active", "--quiet", "keyd")
+    except subprocess.CalledProcessError:
+        LOG.error("keyd is not running! What happened to it?")
+        raise
+
+    mklink(active_link, keymap)
+
+    try:
+        ex("keyd", "reload")
+    except subprocess.CalledProcessError:
+        LOG.error("keyd reload failed! Is there an error in the keyd configuration file?")
+
+        try:
+            if default_link != keymap:
+                switch_keymap(active_link, default_link, default_link)
+        except Exception:
+            LOG.exception(
+                "Nested exception while trying to restore "
+                "default keymap in exception handler...!"
+            )
+
+        raise
 
 def configure_logging():
     address = ''
