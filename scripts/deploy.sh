@@ -186,6 +186,9 @@ edge-tiling=false
 
 [org/gnome/desktop/session]
 idle-delay=uint32 0
+
+[org/gnome/shell]
+welcome-dialog-last-shown-version='46.0'
 EOF
 
 # Download and install a figlet font for use with text banners, for funsies
