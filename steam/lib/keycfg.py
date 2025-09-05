@@ -1,3 +1,9 @@
+from pathlib import Path
+import json
+from xml.etree import ElementTree
+
+import sdl2
+
 keycfg = {
     'p1_up':    'up',
     'p1_down':  'down',
@@ -35,7 +41,7 @@ keycfg = {
 }
 
 
-emulationstation_mapping = {
+default_es_config = {
     'up':            'p1_up',
     'down':          'p1_down',
     'left':          'p1_left',
@@ -52,3 +58,32 @@ emulationstation_mapping = {
     'select':        'p1_coin',
     'start':         'p1_start',
 }
+
+
+def generate_es_config():
+    here = Path(__file__).parent
+
+    with open(here.joinpath("keymap.json"), "r") as file:
+        data = json.load(file)
+
+    config = {}
+    for es_name, keyd_alias in default_es_config.items():
+        if keyd_alias not in keycfg:
+            raise Exception(f"Unknown keyd_alias '{keyd_alias}'")
+        keyd_name = keycfg[keyd_alias]
+        if keyd_name not in data:
+            raise Exception(f"Unmapped keyd keycode '{keyd_name}' not in SDL mapping file")
+
+        config[es_name] = getattr(sdl2, data[keyd_name])
+
+    print('<?xml version="1.0"?>')
+    print('<inputList>')
+    print('    <inputConfig type="keyboard" deviceName="Keyboard" deviceGUID="-1">')
+    for es_name, sdl_value in config.items():
+        print(f'        <input name="{es_name}" type="key" id="{sdl_value}" value="1" />')
+    print('    </inputConfig>')
+    print('</inputList>')
+
+
+if __name__ == '__main__':
+    generate_es_config()

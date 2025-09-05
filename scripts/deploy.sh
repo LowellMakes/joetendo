@@ -196,15 +196,13 @@ wget http://www.figlet.org/fonts/colossal.flf
 install --mode=644 colossal.flf /usr/share/figlet/
 
 
-#- apply the correct key configurations to emulationstation, retroarch, etc.
-# /opt/retropie/configs/all/emulationstation/es_input.cfg
-# default es_input.cfg:
-# <?xml version="1.0"?>
-#<inputList>
-#  <inputAction type="onfinish">
-#    <command>/opt/retropie/supplementary/emulationstation/scripts/inputconfiguration.sh</command>
-#  </inputAction>
-#</inputList>
+# Generate the default keybinds for emulationstation
+# Note that the default configuration can be changed in joetendo.git/steam/lib/keycfg.py
+python3 src/joetendo/steam/lib/keycfg.py > /opt/retropie/configs/all/emulationstation/es_temporaryinput.cfg
+
+# Run retropie post-processing on the ES keybinds to propagate them to libretro et al
+/opt/retropie/supplementary/emulationstation/scripts/inputconfiguration.sh
+
 #- change the various settings in emulationstation accordingly
 
 crudini --set /etc/gdm3/custom.conf daemon AutomaticLoginEnable True
