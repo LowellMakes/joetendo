@@ -7,6 +7,13 @@ set -e
 # since you need sudo to run this script!
 JOETENDO_USER=kiosk
 
+# Grab some stuff we need.
+# git: for cloning various repositories, below.
+# openssh-server: to allow ssh access for maintenance by 'maker' user
+# figlet: for text banners in scripts, etc.
+# make, gcc, python-is-python3: for compiling lolcat, for text banners.
+# libpugixml-dev: for compiling the LM fork of EmulationStation
+# crudini: for editing settings files here in deploy.sh.
 apt install -y \
     git \
     openssh-server \
@@ -17,20 +24,23 @@ apt install -y \
     libpugixml-dev \
     crudini
 
+# Create kiosk and maker users.
 adduser --comment "${JOETENDO_USER},,," --disabled-password ${JOETENDO_USER}
 adduser --comment "maker,,," --disabled-password maker
 echo -e "${JOETENDO_USER}:${JOETENDO_USER}\nmaker:maker" | chpasswd
 
+# change CWD to ~root
 cd ~
-mkdir -p src
 
+# make ~root/src dir and clone various repositories we need
+mkdir -p src
 pushd src
 git clone --depth=1 https://github.com/RetroPie/RetroPie-Setup.git
 git clone https://github.com/jaseg/lolcat.git
 git clone https://github.com/LowellMakes/joetendo.git
 git clone https://github.com/LowellMakes/EmulationStation.git
 
-# For fun O:-)
+# lolcat, for text banners and general frivolity O:-)
 pushd lolcat
 make
 make install
@@ -58,13 +68,14 @@ popd
 
 popd
 
-# Update the RetroPie menu items to be "hidden", so they do not appear
-# in kiosk mode.
+# Update the RetroPie administration menu items to be "hidden",
+# so they do not appear in kiosk mode.
 xmlstarlet ed -L -s "/gameList/game" -t "elem" -n "hidden" -v "true" \
      /opt/retropie/configs/all/emulationstation/gamelists/retropie/gamelist.xml
 
-# Patch the runcommand script to disable the menu when the ES_KIOSK_MODE
-# environment variable is present
+# Patch the RetroPie runcommand script to disable the menu when the
+# ES_KIOSK_MODE environment variable is present, which the LM fork of
+# EmulationStation sets whenever it is in Kiosk mode.
 patch /opt/retropie/supplementary/runcommand/runcommand.sh <<"EOF"
 --- runcommand.sh	2025-09-03 00:42:58.864857056 -0400
 +++ runcommand.sh	2025-09-03 00:51:05.335083012 -0400
@@ -81,8 +92,9 @@ patch /opt/retropie/supplementary/runcommand/runcommand.sh <<"EOF"
      # copy kms tool output to global variable to avoid multiple invocations
 EOF
 
-# Disable various hotkeys so they don't get accidentally triggered by
-# arcade cabinet controls
+# Disable various Ubuntu/GNOME hotkeys so they don't get accidentally
+# triggered by arcade cabinet controls. Disable notifications, idle
+# lockscreen, and the first login welcome popup.
 sudo -i -u ${JOETENDO_USER} exec dbus-run-session -- dconf load '/' <<"EOF"
 [org/gnome/desktop/wm/keybindings]
 activate-window-menu=@as []
@@ -195,16 +207,16 @@ EOF
 wget http://www.figlet.org/fonts/colossal.flf
 install --mode=644 colossal.flf /usr/share/figlet/
 
-
-# Generate the default keybinds for emulationstation
-# Note that the default configuration can be changed in joetendo.git/steam/lib/keycfg.py
+# Generate the default keybinds for emulationstation.
+# Note that the default configuration can be changed in
+# joetendo.git/steam/lib/keycfg.py
 python3 src/joetendo/steam/lib/keycfg.py > /opt/retropie/configs/all/emulationstation/es_temporaryinput.cfg
 
-# Run retropie post-processing on the ES keybinds to propagate them to libretro et al
+# Run retropie post-processing on the ES keybinds to propagate them to
+# libretro et al
 /opt/retropie/supplementary/emulationstation/scripts/inputconfiguration.sh
 
-#- change the various settings in emulationstation accordingly
-
+# Set the kiosk user to be logged in automatically upon system boot
 crudini --set /etc/gdm3/custom.conf daemon AutomaticLoginEnable True
 crudini --set /etc/gdm3/custom.conf daemon AutomaticLogin ${JOETENDO_USER}
 
@@ -215,3 +227,5 @@ pkexec --user ${JOETENDO_USER} \
        env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY \
        dbus-run-session -- steam -shutdown
 xhost -
+
+# FIXME: change various emulationstation config settings
