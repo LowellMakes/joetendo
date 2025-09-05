@@ -203,18 +203,28 @@ idle-delay=uint32 0
 welcome-dialog-last-shown-version='46.0'
 EOF
 
+# Tell the gnome welcome screen to go away O:-)
+sudo -u ${JOETENDO_USER} touch ~${JOETENDO_USER}/.config/gnome-initial-setup-done
+
 # Download and install a figlet font for use with text banners, for funsies
 wget http://www.figlet.org/fonts/colossal.flf
+wget http://www.figlet.org/fonts/alligator.ftf
 install --mode=644 colossal.flf /usr/share/figlet/
+install --mode=644 alligator.flf /usr/share/figlet/
 
 # Generate the default keybinds for emulationstation.
 # Note that the default configuration can be changed in
 # joetendo.git/steam/lib/keycfg.py
-python3 src/joetendo/steam/lib/keycfg.py > /opt/retropie/configs/all/emulationstation/es_temporaryinput.cfg
+python3 \
+    src/joetendo/steam/lib/keycfg.py > \
+    /opt/retropie/configs/all/emulationstation/es_temporaryinput.cfg
+chown ${JOETENDO_USER}:${JOETENDO_USER} \
+    /opt/retropie/configs/all/emulationstation/es_temporaryinput.cfg
 
 # Run retropie post-processing on the ES keybinds to propagate them to
 # libretro et al
-/opt/retropie/supplementary/emulationstation/scripts/inputconfiguration.sh
+sudo -u ${JOETENDO_USER} \
+     /opt/retropie/supplementary/emulationstation/scripts/inputconfiguration.sh
 
 # Set the kiosk user to be logged in automatically upon system boot
 crudini --set /etc/gdm3/custom.conf daemon AutomaticLoginEnable True
