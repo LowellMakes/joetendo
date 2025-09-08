@@ -72,7 +72,7 @@ popd
 # Perform installation of the steam game launcher addon for
 # RetroPie/EmulationStation.
 git clone https://github.com/LowellMakes/joetendo.git
-pushd joetendo/steam/lib
+pushd joetendo/steam/steamvent
 __user=${JOETENDO_USER} python3 setup.py
 popd
 

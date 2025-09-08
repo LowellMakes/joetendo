@@ -2,8 +2,8 @@ import sys
 import time
 import subprocess
 
-from common import ex, switch_keymap, get_configuration
-from lolfiglet import lolfiglet
+from .common import ex, switch_keymap, get_configuration
+from .lolfiglet import lolfiglet
 
 
 def do_kiosk():
