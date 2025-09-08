@@ -34,7 +34,8 @@ apt install -y \
     gcc \
     python-is-python3 \
     libpugixml-dev \
-    crudini
+    crudini \
+    python3-pip
 
 # Create kiosk and maker users.
 adduser --comment "${JOETENDO_USER},,," --disabled-password ${JOETENDO_USER}
@@ -72,9 +73,14 @@ popd
 # Perform installation of the steam game launcher addon for
 # RetroPie/EmulationStation.
 git clone https://github.com/LowellMakes/joetendo.git
-pushd joetendo/steam/steamvent
+pushd joetendo/steam
+pushd steamvent
 __user=${JOETENDO_USER} python3 setup.py
 popd
+# install the steamvent scripts
+pip install . --break-system-packages
+popd
+
 
 # back to ~root as CWD
 popd
