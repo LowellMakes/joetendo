@@ -13,6 +13,10 @@ JOETENDO_USER=kiosk
 ################
 
 
+# restart the clock; mostly because in VM testing the clock might be
+# wrong and installation of packages will fail if it isn't right!
+systemctl restart systemd-timesyncd
+
 # Grab some stuff we need.
 # git: for cloning various repositories, below.
 # openssh-server: to allow ssh access for maintenance by 'maker' user
