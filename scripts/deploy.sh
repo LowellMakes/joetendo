@@ -207,7 +207,10 @@ welcome-dialog-last-shown-version='46.0'
 EOF
 
 # Tell the gnome welcome screen to go away O:-)
-sudo -u ${JOETENDO_USER} touch ~${JOETENDO_USER}/.config/gnome-initial-setup-done
+# Got permission denied here, for some reason?
+# sudo -u ${JOETENDO_USER} touch ~${JOETENDO_USER}/.config/gnome-initial-setup-done
+touch ~${JOETENDO_USER}/.config/gnome-initial-setup-done
+
 
 # Set the kiosk user to be logged in automatically upon system boot
 crudini --set /etc/gdm3/custom.conf daemon AutomaticLoginEnable True
