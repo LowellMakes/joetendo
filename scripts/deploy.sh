@@ -20,6 +20,8 @@ JOETENDO_USER=kiosk
 # make, gcc, python-is-python3: for compiling lolcat, for text banners.
 # libpugixml-dev: for compiling the LM fork of EmulationStation
 # crudini: for editing settings files here in deploy.sh.
+apt update
+apt upgrade -y
 apt install -y \
     git \
     openssh-server \
