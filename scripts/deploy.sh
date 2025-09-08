@@ -7,6 +7,12 @@ set -e
 # since you need sudo to run this script!
 JOETENDO_USER=kiosk
 
+
+################
+# INSTALLATION #
+################
+
+
 # Grab some stuff we need.
 # git: for cloning various repositories, below.
 # openssh-server: to allow ssh access for maintenance by 'maker' user
@@ -29,24 +35,20 @@ adduser --comment "${JOETENDO_USER},,," --disabled-password ${JOETENDO_USER}
 adduser --comment "maker,,," --disabled-password maker
 echo -e "${JOETENDO_USER}:${JOETENDO_USER}\nmaker:maker" | chpasswd
 
-# change CWD to ~root
+# make ~root/src, change CWD
 cd ~
-
-# make ~root/src dir and clone various repositories we need
 mkdir -p src
 pushd src
-git clone --depth=1 https://github.com/RetroPie/RetroPie-Setup.git
-git clone https://github.com/jaseg/lolcat.git
-git clone https://github.com/LowellMakes/joetendo.git
-git clone https://github.com/LowellMakes/EmulationStation.git
 
 # lolcat, for text banners and general frivolity O:-)
+git clone --depth=1 https://github.com/jaseg/lolcat.git
 pushd lolcat
 make
 make install
 popd
 
 # Build and install RetroPie + EmulationStation
+git clone --depth=1 https://github.com/RetroPie/RetroPie-Setup.git
 pushd RetroPie-Setup
 __user=${JOETENDO_USER} ./retropie_packages.sh setup basic_install
 __user=${JOETENDO_USER} ./retropie_packages.sh lr-mame
@@ -54,6 +56,7 @@ popd
 
 # Build and install the LowellMakes fork of EmulationStation, which
 # locks down more features in "kiosk" mode compared to the RetroPie fork
+git clone https://github.com/LowellMakes/EmulationStation.git
 pushd EmulationStation
 cmake .
 make
@@ -62,35 +65,23 @@ popd
 
 # Perform installation of the steam game launcher addon for
 # RetroPie/EmulationStation.
+git clone https://github.com/LowellMakes/joetendo.git
 pushd joetendo/steam/lib
 __user=${JOETENDO_USER} python3 setup.py
 popd
 
+# back to ~root as CWD
 popd
 
-# Update the RetroPie administration menu items to be "hidden",
-# so they do not appear in kiosk mode.
-xmlstarlet ed -L -s "/gameList/game" -t "elem" -n "hidden" -v "true" \
-     /opt/retropie/configs/all/emulationstation/gamelists/retropie/gamelist.xml
 
-# Patch the RetroPie runcommand script to disable the menu when the
-# ES_KIOSK_MODE environment variable is present, which the LM fork of
-# EmulationStation sets whenever it is in Kiosk mode.
-patch /opt/retropie/supplementary/runcommand/runcommand.sh <<"EOF"
---- runcommand.sh	2025-09-03 00:42:58.864857056 -0400
-+++ runcommand.sh	2025-09-03 00:51:05.335083012 -0400
-@@ -130,6 +130,10 @@
-         [[ -z "$LEGACY_JOY2KEY" ]] && LEGACY_JOY2KEY=0
-     fi
- 
-+    if [[ -n "$ES_KIOSK_MODE" ]]; then
-+        DISABLE_MENU=1
-+    fi
-+
-     if [[ -n "$DISPLAY" ]] && $XRANDR &>/dev/null; then
-         HAS_MODESET="x11"
-     # copy kms tool output to global variable to avoid multiple invocations
-EOF
+#################
+# CONFIGURATION #
+#################
+
+
+# Ubuntu/GNOME tweaks
+# -------------------
+
 
 # Disable various Ubuntu/GNOME hotkeys so they don't get accidentally
 # triggered by arcade cabinet controls. Disable notifications, idle
@@ -206,11 +197,40 @@ EOF
 # Tell the gnome welcome screen to go away O:-)
 sudo -u ${JOETENDO_USER} touch ~${JOETENDO_USER}/.config/gnome-initial-setup-done
 
-# Download and install a figlet font for use with text banners, for funsies
-wget http://www.figlet.org/fonts/colossal.flf
-wget http://www.figlet.org/fonts/alligator.ftf
-install --mode=644 colossal.flf /usr/share/figlet/
-install --mode=644 alligator.flf /usr/share/figlet/
+# Set the kiosk user to be logged in automatically upon system boot
+crudini --set /etc/gdm3/custom.conf daemon AutomaticLoginEnable True
+crudini --set /etc/gdm3/custom.conf daemon AutomaticLogin ${JOETENDO_USER}
+
+
+# EmulationStation/RetroPie tweaks
+# --------------------------------
+
+
+# Update the RetroPie administration menu items to be "hidden",
+# so they do not appear in kiosk mode.
+xmlstarlet ed -L -s "/gameList/game" -t "elem" -n "hidden" -v "true" \
+     /opt/retropie/configs/all/emulationstation/gamelists/retropie/gamelist.xml
+
+# Patch the RetroPie runcommand script to disable the run menu when the
+# ES_KIOSK_MODE environment variable is present, which the LM fork of
+# EmulationStation sets whenever it is in Kiosk mode. This prevents
+# accidentally entering the emulator config menu when pressing the "A"
+# button multiple times during game launch.
+patch /opt/retropie/supplementary/runcommand/runcommand.sh <<"EOF"
+--- runcommand.sh	2025-09-03 00:42:58.864857056 -0400
++++ runcommand.sh	2025-09-03 00:51:05.335083012 -0400
+@@ -130,6 +130,10 @@
+         [[ -z "$LEGACY_JOY2KEY" ]] && LEGACY_JOY2KEY=0
+     fi
+ 
++    if [[ -n "$ES_KIOSK_MODE" ]]; then
++        DISABLE_MENU=1
++    fi
++
+     if [[ -n "$DISPLAY" ]] && $XRANDR &>/dev/null; then
+         HAS_MODESET="x11"
+     # copy kms tool output to global variable to avoid multiple invocations
+EOF
 
 # Generate the default keybinds for emulationstation.
 # Note that the default configuration can be changed in
@@ -226,16 +246,39 @@ chown ${JOETENDO_USER}:${JOETENDO_USER} \
 sudo -u ${JOETENDO_USER} \
      /opt/retropie/supplementary/emulationstation/scripts/inputconfiguration.sh
 
-# Set the kiosk user to be logged in automatically upon system boot
-crudini --set /etc/gdm3/custom.conf daemon AutomaticLoginEnable True
-crudini --set /etc/gdm3/custom.conf daemon AutomaticLogin ${JOETENDO_USER}
+# FIXME: change various emulationstation config settings
 
-# Run steam to finish installation; updates client and asks human
-# attendant to log in :)
+# Download a free NES rom to pre-populate the roms directory so that ES
+# doesn't crash when it is first launched in kiosk mode and there's
+# nothing to display.
+pushd ${JOETENDO_USER}/RetroPie/roms/nes/
+wget https://www.dpadhero.com/releases/20090204/dpadhero.zip
+chown ${JOETENDO_USER}:${JOETENDO_USER} dpadhero.zip
+popd
+
+
+# figlet/lolcat configuration
+# ---------------------------
+
+
+# Download and install a figlet font for use with text banners, for funsies
+wget http://www.figlet.org/fonts/colossal.flf
+wget http://www.figlet.org/fonts/alligator.ftf
+install --mode=644 colossal.flf /usr/share/figlet/
+install --mode=644 alligator.flf /usr/share/figlet/
+
+
+# steam configuration
+# -------------------
+
+
+# Run steam to finish installation. This is last because it requires
+# human intervention for the login, so we get as far as we possibly can
+# without human intervention. This "primes" the steam installation,
+# forcing it to download client updates before it can boot for the first
+# time, then it asks the human attendant to actually log in.
 xhost SI:localuser:${JOETENDO_USER}
 pkexec --user ${JOETENDO_USER} \
        env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY \
        dbus-run-session -- steam -shutdown
 xhost -
-
-# FIXME: change various emulationstation config settings
