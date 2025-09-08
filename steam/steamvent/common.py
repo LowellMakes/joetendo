@@ -58,6 +58,7 @@ def switch_keymap(active_link, default_link, keymap):
 
         raise
 
+
 def configure_logging():
     address = ''
     if os.path.exists('/dev/log'):
@@ -158,6 +159,7 @@ class Configuration:
     steam_dir: Path
     game_dir: Path
     keymap_dir: Path
+    cache_dir: Path
     active_keymap: Path
     default_keymap: Path
     keyd_config: Path
@@ -193,6 +195,7 @@ def get_configuration():
         steam_dir=steam_root,
         game_dir=steam_root.joinpath("menu"),
         keymap_dir=keymap_dir,
+        cache_dir=steam_root.joinpath("cache"),
         active_keymap=keymap_dir.joinpath("active.conf"),
         default_keymap=keymap_dir.joinpath("default.conf"),
         keyd_config=Path('/etc/keyd/default.conf'),
