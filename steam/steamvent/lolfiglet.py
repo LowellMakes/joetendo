@@ -17,11 +17,17 @@ def lolfiglet(message, font=None, duration=10, delay=0.025):
         shell=True,
     )
 
+    term_x, term_y = os.get_terminal_size()
     height = ret.stdout.count(b'\n')
+
+    y_margin = term_y - height
+    y_offset = int(y_margin / 2)
+
     num = int(duration / delay)
 
     try:
         subprocess.run("tput civis", shell=True)
+        print("\n" * y_offset, end='')
         for i in range(num):
             subprocess.run(f'figlet -ktc "{message}" -f {font} | lolcat -o {i}', shell=True)
             print("\033[A"*height, end='')
