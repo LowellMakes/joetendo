@@ -242,19 +242,22 @@ python3 src/joetendo/steam/steamvent/keycfg.py > $ES_TEMPINPUT
 chown ${JOETENDO_USER}:${JOETENDO_USER} $ES_TEMPINPUT
 
 # Run retropie post-processing on the ES keybinds to propagate them to
-# libretro et al
+# libretro et al. This script tends to report failure erroneously owing
+# to how it determines if it has certain plugins available, so ignore
+# error here.
+set +e
 sudo -i -u ${JOETENDO_USER} \
      /opt/retropie/supplementary/emulationstation/scripts/inputconfiguration.sh
+set -e
 
 # FIXME: change various emulationstation config settings
 
 # Download a free NES rom to pre-populate the roms directory so that ES
 # doesn't crash when it is first launched in kiosk mode and there's
 # nothing to display.
-pushd ${JOETENDO_USER}/RetroPie/roms/nes/
-wget https://www.dpadhero.com/releases/20090204/dpadhero.zip
-chown ${JOETENDO_USER}:${JOETENDO_USER} dpadhero.zip
-popd
+sudo -i -u ${JOETENDO_USER} \
+     wget https://www.dpadhero.com/releases/20090204/dpadhero.zip \
+     --output-document RetroPie/roms/nes/dpadhero.zip
 
 # figlet/lolcat configuration
 # ---------------------------
