@@ -257,6 +257,7 @@ set -e
 # nothing to display.
 sudo -i -u ${JOETENDO_USER} \
      wget https://www.dpadhero.com/releases/20090204/dpadhero.zip \
+     --user-agent='Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:135.0) Gecko/20100101 Firefox/135.0' \
      --output-document RetroPie/roms/nes/dpadhero.zip
 
 # figlet/lolcat configuration
@@ -264,7 +265,7 @@ sudo -i -u ${JOETENDO_USER} \
 
 # Download and install a figlet font for use with text banners, for funsies
 wget http://www.figlet.org/fonts/colossal.flf
-wget http://www.figlet.org/fonts/alligator.ftf
+wget http://www.figlet.org/fonts/alligator.flf
 install --mode=644 colossal.flf /usr/share/figlet/
 install --mode=644 alligator.flf /usr/share/figlet/
 
