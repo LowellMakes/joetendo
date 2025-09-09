@@ -250,7 +250,22 @@ sudo -i -u ${JOETENDO_USER} \
      /opt/retropie/supplementary/emulationstation/scripts/inputconfiguration.sh
 set -e
 
-# FIXME: change various emulationstation config settings
+# Adjust various settings. By default there is no config file at all, so
+# we write only the values we want to change here.
+cat > /opt/retropie/configs/all/emulationstation/es_settings.cfg <<EOF
+<?xml version="1.0"?>
+<bool name="IgnoreLeadingArticles" value="true" />
+<bool name="StretchVideoOnScreenSaver" value="true" />
+<int name="MaxVRAM" value="1000" />
+<int name="ScreenSaverSwapVideoTimeout" value="45000" />
+<int name="ScreenSaverTime" value="60000" />
+<string name="CollectionSystemsAuto" value="all" />
+<string name="GamelistViewStyle" value="video" />
+<string name="SaveGamelistsMode" value="always" />
+<string name="ScreenSaverBehavior" value="random video" />
+<string name="StartupSystem" value="all" />
+<string name="VlcScreenSaverResolution" value="max" />
+EOF
 
 # Download a free NES rom to pre-populate the roms directory so that ES
 # doesn't crash when it is first launched in kiosk mode and there's

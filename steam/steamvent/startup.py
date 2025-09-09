@@ -14,8 +14,7 @@ def do_kiosk():
     )
 
     try:
-        lolfiglet("NOW LOADING")
-        #print("Launching emulationstation ...")
+        lolfiglet("SUPER JOETENDO")
         ex("emulationstation", "--force-kiosk", "--no-exit")
     finally:
         proc.terminate()
