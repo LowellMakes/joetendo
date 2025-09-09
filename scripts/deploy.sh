@@ -12,7 +12,6 @@ JOETENDO_USER=kiosk
 # INSTALLATION #
 ################
 
-
 # restart the clock; mostly because in VM testing the clock might be
 # wrong and installation of packages will fail if it isn't right!
 systemctl restart systemd-timesyncd
@@ -70,17 +69,11 @@ make
 install --mode=755 emulationstation /opt/retropie/supplementary/emulationstation/
 popd
 
-# Perform installation of the steam game launcher addon for
-# RetroPie/EmulationStation.
+# Install Joetendo python package and scripts
 git clone https://github.com/LowellMakes/joetendo.git
 pushd joetendo/steam
-pushd steamvent
-__user=${JOETENDO_USER} python3 setup.py
-popd
-# install the steamvent scripts
 pip install . --break-system-packages
 popd
-
 
 # back to ~root as CWD
 popd
@@ -90,10 +83,8 @@ popd
 # CONFIGURATION #
 #################
 
-
 # Ubuntu/GNOME tweaks
 # -------------------
-
 
 # Disable various Ubuntu/GNOME hotkeys so they don't get accidentally
 # triggered by arcade cabinet controls. Disable notifications, idle
@@ -213,10 +204,8 @@ sudo -i -u ${JOETENDO_USER} touch .config/gnome-initial-setup-done
 crudini --set /etc/gdm3/custom.conf daemon AutomaticLoginEnable True
 crudini --set /etc/gdm3/custom.conf daemon AutomaticLogin ${JOETENDO_USER}
 
-
 # EmulationStation/RetroPie tweaks
 # --------------------------------
-
 
 # Update the RetroPie administration menu items to be "hidden",
 # so they do not appear in kiosk mode.
@@ -248,7 +237,7 @@ EOF
 # Note that the default configuration can be changed in
 # joetendo.git/steam/lib/keycfg.py
 python3 \
-    src/joetendo/steam/lib/keycfg.py > \
+    src/joetendo/steam/steamvent/keycfg.py > \
     /opt/retropie/configs/all/emulationstation/es_temporaryinput.cfg
 chown ${JOETENDO_USER}:${JOETENDO_USER} \
     /opt/retropie/configs/all/emulationstation/es_temporaryinput.cfg
@@ -268,10 +257,8 @@ wget https://www.dpadhero.com/releases/20090204/dpadhero.zip
 chown ${JOETENDO_USER}:${JOETENDO_USER} dpadhero.zip
 popd
 
-
 # figlet/lolcat configuration
 # ---------------------------
-
 
 # Download and install a figlet font for use with text banners, for funsies
 wget http://www.figlet.org/fonts/colossal.flf
@@ -280,9 +267,15 @@ install --mode=644 colossal.flf /usr/share/figlet/
 install --mode=644 alligator.flf /usr/share/figlet/
 
 
-# steam configuration
-# -------------------
+###################################
+# EmulationStation - Steam plugin #
+###################################
 
+# Perform installation of the steam game launcher addon for
+# RetroPie/EmulationStation.
+pushd src/joetendo/steam/steamvent
+__user=${JOETENDO_USER} python3 setup.py
+popd
 
 # Run steam to finish installation. This is last because it requires
 # human intervention for the login, so we get as far as we possibly can
