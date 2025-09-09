@@ -236,15 +236,14 @@ EOF
 # Generate the default keybinds for emulationstation.
 # Note that the default configuration can be changed in
 # joetendo.git/steam/lib/keycfg.py
-python3 \
-    src/joetendo/steam/steamvent/keycfg.py > \
-    /opt/retropie/configs/all/emulationstation/es_temporaryinput.cfg
-chown ${JOETENDO_USER}:${JOETENDO_USER} \
-    /opt/retropie/configs/all/emulationstation/es_temporaryinput.cfg
+
+ES_TEMPINPUT=/opt/retropie/configs/all/emulationstation/es_temporaryinput.cfg
+python3 src/joetendo/steam/steamvent/keycfg.py > $ES_TEMPINPUT
+chown ${JOETENDO_USER}:${JOETENDO_USER} $ES_TEMPINPUT
 
 # Run retropie post-processing on the ES keybinds to propagate them to
 # libretro et al
-sudo -u ${JOETENDO_USER} \
+sudo -i -u ${JOETENDO_USER} \
      /opt/retropie/supplementary/emulationstation/scripts/inputconfiguration.sh
 
 # FIXME: change various emulationstation config settings
