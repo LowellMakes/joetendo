@@ -267,6 +267,9 @@ cat > /opt/retropie/configs/all/emulationstation/es_settings.cfg <<EOF
 <string name="VlcScreenSaverResolution" value="max" />
 EOF
 
+# Change the default mame emulator to lr-mame (from lr-mame2003)
+crudini --set /opt/retropie/configs/mame-libretro/emulators.cfg "" default \"lr-mame\"
+
 # Download a free NES rom to pre-populate the roms directory so that ES
 # doesn't crash when it is first launched in kiosk mode and there's
 # nothing to display.
