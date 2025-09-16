@@ -101,6 +101,7 @@ def config_to_SDL2(mapping, data):
             raise Exception(f"Unmapped keyd keycode '{keyd_name}' not in SDL mapping file")
 
         config[es_name] = getattr(sdl2, data[keyd_name])
+    return config
 
 
 def generate_es_config():
