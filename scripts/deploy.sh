@@ -250,6 +250,33 @@ sudo -i -u ${JOETENDO_USER} \
      /opt/retropie/supplementary/emulationstation/scripts/inputconfiguration.sh
 set -e
 
+# Manually add player 2 keybinds to retroarch. At the moment,
+# EmulationStation does not support two players with one device
+# natively, so we have to take matters into our own hands. This does
+# mean that the P2 controls will not work for the ES menu itself, but
+# they will work in any RetroArch emulator, which is most of
+# them. Non-RetroArch emulators will need to be configured separately.
+
+# HACK: This ignores the config in keycfg.py and just does a static
+# layout for player2. I was too lazy to figure out how to map the key
+# names to what retroarch expects, and Joetendo has been offline long
+# enough as is. I'll fix it later, or never, I guess.
+
+cfg=/opt/retropie/configs/all/retroarch.cfg
+
+crudini --set $cfg "" "input_player2_a" "s"
+crudini --set $cfg "" "input_player2_b" "a"
+crudini --set $cfg "" "input_player2_x" "i"
+crudini --set $cfg "" "input_player2_y" "w"
+crudini --set $cfg "" "input_player2_l" "k"
+crudini --set $cfg "" "input_player2_r" "q"
+crudini --set $cfg "" "input_player2_left" "d"
+crudini --set $cfg "" "input_player2_right" "g"
+crudini --set $cfg "" "input_player2_up" "r"
+crudini --set $cfg "" "input_player2_down" "f"
+crudini --set $cfg "" "input_player2_start" "2"
+crudini --set $cfg "" "input_player2_select" "6"
+
 # Adjust various settings. By default there is no config file at all, so
 # we write only the values we want to change here.
 cat > /opt/retropie/configs/all/emulationstation/es_settings.cfg <<EOF

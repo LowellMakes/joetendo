@@ -111,7 +111,7 @@ def generate_es_config():
         data = json.load(file)
 
     p1_config = config_to_SDL2(default_es_config, data)
-    p2_config = config_to_SDL2(default_es_config_p2, data)
+    # p2_config = config_to_SDL2(default_es_config_p2, data)
 
     print('<?xml version="1.0"?>')
     print('<inputList>')
@@ -121,10 +121,10 @@ def generate_es_config():
         print(f'        <input name="{es_name}" type="key" id="{sdl_value}" value="1" />')
     print('    </inputConfig>')
 
-    print('    <inputConfig type="keyboard" deviceName="Keyboard" deviceGUID="-1">')
-    for es_name, sdl_value in p2_config.items():
-        print(f'        <input name="{es_name}" type="key" id="{sdl_value}" value="1" />')
-    print('    </inputConfig>')
+    # print('    <inputConfig type="keyboard" deviceName="Keyboard" deviceGUID="-1">')
+    # for es_name, sdl_value in p2_config.items():
+    #     print(f'        <input name="{es_name}" type="key" id="{sdl_value}" value="1" />')
+    # print('    </inputConfig>')
 
     print('</inputList>')
 
