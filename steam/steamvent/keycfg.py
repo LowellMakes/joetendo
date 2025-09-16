@@ -91,7 +91,7 @@ default_es_config_p2 = {
 }
 
 
-def config_to_SDL2(mapping):
+def config_to_SDL2(mapping, data):
     config = {}
     for es_name, keyd_alias in mapping.items():
         if keyd_alias not in keycfg:
@@ -109,8 +109,8 @@ def generate_es_config():
     with open(here.joinpath("keymap.json"), "r") as file:
         data = json.load(file)
 
-    p1_config = config_to_SDL2(default_es_config)
-    p2_config = config_to_SDL2(default_es_config_p2)
+    p1_config = config_to_SDL2(default_es_config, data)
+    p2_config = config_to_SDL2(default_es_config_p2, data)
 
     print('<?xml version="1.0"?>')
     print('<inputList>')
