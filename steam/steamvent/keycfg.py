@@ -4,6 +4,15 @@ from xml.etree import ElementTree
 
 import sdl2
 
+# Default KEYD configuration
+#
+# This dict maps keyd aliases to keyd keycode names.
+#
+# It is used first and foremost to generate /etc/keyd/common, which
+# assigns aliases to raw keypresses, e.g. pressing "z" will register a
+# press for "p1_5".
+#
+# It is also used for generating default EmulationStation configuration, below.
 keycfg = {
     'p1_up':    'up',
     'p1_down':  'down',
@@ -41,6 +50,9 @@ keycfg = {
 }
 
 
+# Default EmulationStation configuration for player 1.
+#
+# Maps ES control names (left) to Keyd aliases (right).
 default_es_config = {
     'up':            'p1_up',
     'down':          'p1_down',
@@ -59,15 +71,29 @@ default_es_config = {
     'start':         'p1_start',
 }
 
+# Default EmulationStation configuration for player 2.
+default_es_config_p2 = {
+    'up':            'p2_up',
+    'down':          'p2_down',
+    'left':          'p2_left',
+    'right':         'p2_right',
+    'b':             'p2_1',
+    'a':             'p2_2',
+    'rightshoulder': 'p2_3',
+    'y':             'p2_4',
+    'x':             'p2_5',
+    'leftshoulder':  'p2_6',
+    'righttrigger':  'p2_7',
+    'lefttrigger':   'p2_8',
+    #
+    'select':        'p2_coin',
+    'start':         'p2_start',
+}
 
-def generate_es_config():
-    here = Path(__file__).parent
 
-    with open(here.joinpath("keymap.json"), "r") as file:
-        data = json.load(file)
-
+def config_to_SDL2(mapping):
     config = {}
-    for es_name, keyd_alias in default_es_config.items():
+    for es_name, keyd_alias in mapping.items():
         if keyd_alias not in keycfg:
             raise Exception(f"Unknown keyd_alias '{keyd_alias}'")
         keyd_name = keycfg[keyd_alias]
@@ -76,12 +102,29 @@ def generate_es_config():
 
         config[es_name] = getattr(sdl2, data[keyd_name])
 
+
+def generate_es_config():
+    here = Path(__file__).parent
+
+    with open(here.joinpath("keymap.json"), "r") as file:
+        data = json.load(file)
+
+    p1_config = config_to_SDL2(default_es_config)
+    p2_config = config_to_SDL2(default_es_config_p2)
+
     print('<?xml version="1.0"?>')
     print('<inputList>')
+
     print('    <inputConfig type="keyboard" deviceName="Keyboard" deviceGUID="-1">')
-    for es_name, sdl_value in config.items():
+    for es_name, sdl_value in p1_config.items():
         print(f'        <input name="{es_name}" type="key" id="{sdl_value}" value="1" />')
     print('    </inputConfig>')
+
+    print('    <inputConfig type="keyboard" deviceName="Keyboard" deviceGUID="-1">')
+    for es_name, sdl_value in p2_config.items():
+        print(f'        <input name="{es_name}" type="key" id="{sdl_value}" value="1" />')
+    print('    </inputConfig>')
+
     print('</inputList>')
 
 
