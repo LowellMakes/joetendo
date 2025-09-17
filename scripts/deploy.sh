@@ -6,6 +6,7 @@ set -e
 # necessarily who is running this script - and in fact, probably not,
 # since you need sudo to run this script!
 JOETENDO_USER=kiosk
+ADMIN_USER=maker
 
 
 ################
@@ -18,7 +19,7 @@ systemctl restart systemd-timesyncd
 
 # Grab some stuff we need.
 # git: for cloning various repositories, below.
-# openssh-server: to allow ssh access for maintenance by 'maker' user
+# openssh-server: to allow ssh access for maintenance by admin user
 # figlet: for text banners in scripts, etc.
 # make, gcc, python-is-python3: for compiling lolcat, for text banners.
 # libpugixml-dev: for compiling the LM fork of EmulationStation
@@ -36,10 +37,11 @@ apt install -y \
     crudini \
     python3-pip
 
-# Create kiosk and maker users.
+# Create kiosk and admin users.
 adduser --comment "${JOETENDO_USER},,," --disabled-password ${JOETENDO_USER}
-adduser --comment "maker,,," --disabled-password maker
-echo -e "${JOETENDO_USER}:${JOETENDO_USER}\nmaker:maker" | chpasswd
+adduser --comment "${ADMIN_USER},,," --disabled-password ${ADMIN_USER}
+echo -e "${JOETENDO_USER}:${JOETENDO_USER}\n${ADMIN_USER}:${ADMIN_USER}" | chpasswd
+usermod -aG adm,cdrom,sudo,dip,plugdev,lpadmin ${ADMIN_USER}
 
 # make ~root/src, change CWD
 cd ~
