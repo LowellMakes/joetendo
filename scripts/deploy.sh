@@ -204,8 +204,8 @@ sudo -i -u ${JOETENDO_USER} touch .config/gnome-initial-setup-done
 crudini --set /etc/gdm3/custom.conf daemon AutomaticLoginEnable True
 crudini --set /etc/gdm3/custom.conf daemon AutomaticLogin ${JOETENDO_USER}
 
-# EmulationStation/RetroPie tweaks
-# --------------------------------
+# EmulationStation/RetroPie config and tweaks
+# -------------------------------------------
 
 # Update the RetroPie administration menu items to be "hidden",
 # so they do not appear in kiosk mode.
@@ -236,9 +236,8 @@ EOF
 # Generate the default keybinds for emulationstation.
 # Note that the default configuration can be changed in
 # joetendo.git/steam/lib/keycfg.py
-
 ES_TEMPINPUT=/opt/retropie/configs/all/emulationstation/es_temporaryinput.cfg
-python3 src/joetendo/steam/steamvent/keycfg.py > $ES_TEMPINPUT
+python3 src/joetendo/steam/steamvent/keycfg.py -es > $ES_TEMPINPUT
 chown ${JOETENDO_USER}:${JOETENDO_USER} $ES_TEMPINPUT
 
 # Run retropie post-processing on the ES keybinds to propagate them to
@@ -256,28 +255,9 @@ set -e
 # mean that the P2 controls will not work for the ES menu itself, but
 # they will work in any RetroArch emulator, which is most of
 # them. Non-RetroArch emulators will need to be configured separately.
+python3 src/joetendo/steam/steamvent/keycfg.py -ra | crudini --merge /opt/retropie/configs/all/retroarch.cfg
 
-# HACK: This ignores the config in keycfg.py and just does a static
-# layout for player2. I was too lazy to figure out how to map the key
-# names to what retroarch expects, and Joetendo has been offline long
-# enough as is. I'll fix it later, or never, I guess.
-
-cfg=/opt/retropie/configs/all/retroarch.cfg
-
-crudini --set $cfg "" "input_player2_a" "s"
-crudini --set $cfg "" "input_player2_b" "a"
-crudini --set $cfg "" "input_player2_x" "i"
-crudini --set $cfg "" "input_player2_y" "w"
-crudini --set $cfg "" "input_player2_l" "k"
-crudini --set $cfg "" "input_player2_r" "q"
-crudini --set $cfg "" "input_player2_left" "d"
-crudini --set $cfg "" "input_player2_right" "g"
-crudini --set $cfg "" "input_player2_up" "r"
-crudini --set $cfg "" "input_player2_down" "f"
-crudini --set $cfg "" "input_player2_start" "2"
-crudini --set $cfg "" "input_player2_select" "6"
-
-# Adjust various settings. By default there is no config file at all, so
+# Adjust various ES settings. By default there is no config file at all, so
 # we write only the values we want to change here.
 cat > /opt/retropie/configs/all/emulationstation/es_settings.cfg <<EOF
 <?xml version="1.0"?>

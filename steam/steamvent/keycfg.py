@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 import json
 from xml.etree import ElementTree
@@ -8,11 +9,26 @@ import sdl2
 #
 # This dict maps keyd aliases to keyd keycode names.
 #
+# Any 'keyd' name is valid as a value, however not all values are
+# necessarily mapped for EmulationStation and RetroArch; multimedia keys
+# and non-en_US keys have a higher likelihood of being unmapped. Only
+# unshifted keys are mapped, e.g. 'semicolon' is available but 'colon'
+# is not.
+#
+# In effect, this mapping symbolically defines the relationship between
+# standard arcade control layouts and the actual keypresses we have
+# configured them to generate. This mapping uses, as much as possible,
+# the "default" or "expected" keypresses that MAME is configured to
+# recognize, which in turn are also the default keybinds configured for
+# the IPAC device.
+#
 # It is used first and foremost to generate /etc/keyd/common, which
 # assigns aliases to raw keypresses, e.g. pressing "z" will register a
 # press for "p1_5".
 #
-# It is also used for generating default EmulationStation configuration, below.
+# Further below, these alias names are used to define the relationship
+# between the arcade layout and emulated controller buttons for both
+# EmulationStation and RetroArch.
 keycfg = {
     'p1_up':    'up',
     'p1_down':  'down',
@@ -91,6 +107,39 @@ default_es_config_p2 = {
 }
 
 
+default_retroarch_config = {
+    "input_player1_b": "p1_1",
+    "input_player1_a": "p1_2",
+    "input_player1_r": "p1_3",
+    "input_player1_y": "p1_4",
+    "input_player1_x": "p1_5",
+    "input_player1_l": "p1_6",
+    "input_player1_r2": "p1_7",
+    "input_player1_l2": "p1_8",
+    "input_player1_select": "p1_coin",
+    "input_player1_start": "p1_start",
+    "input_player1_up": "p1_up",
+    "input_player1_down": "p1_down",
+    "input_player1_left": "p1_left",
+    "input_player1_right": "p1_right",
+
+    "input_player2_b": "p2_1",
+    "input_player2_a": "p2_2",
+    "input_player2_r": "p2_3",
+    "input_player2_y": "p2_4",
+    "input_player2_x": "p2_5",
+    "input_player2_l": "p2_6",
+    "input_player2_r2": "p2_7",
+    "input_player2_l2": "p2_8",
+    "input_player2_select": "p2_coin",
+    "input_player2_start": "p2_start",
+    "input_player2_up": "p2_up",
+    "input_player2_down": "p2_down",
+    "input_player2_left": "p2_left",
+    "input_player2_right": "p2_right",
+}
+
+
 def config_to_SDL2(mapping, data):
     config = {}
     for es_name, keyd_alias in mapping.items():
@@ -101,6 +150,19 @@ def config_to_SDL2(mapping, data):
             raise Exception(f"Unmapped keyd keycode '{keyd_name}' not in SDL mapping file")
 
         config[es_name] = getattr(sdl2, data[keyd_name])
+    return config
+
+
+def config_to_retroarch(translation_map):
+    config = {}
+    for ra_name, keyd_alias in default_retroarch_config.items():
+        if keyd_alias not in keycfg:
+            raise Exception(f"Unknown keyd_alias '{keyd_alias}'")
+        keyd_name = keycfg[keyd_alias]
+        if keyd_name not in translation_map:
+            raise Exception(f"keyd keycode '{keyd_name}' not in RetroArch mapping file")
+
+        config[ra_name] = translation_map[keyd_name]
     return config
 
 
@@ -129,5 +191,35 @@ def generate_es_config():
     print('</inputList>')
 
 
+def generate_retroarch_config():
+    here = Path(__file__).parent
+
+    with open(here.joinpath("retroarch_map.json"), "r") as file:
+        data = json.load(file)
+
+    config = config_to_retroarch(data)
+
+    for key, value in config.items():
+        print(f'{key} = "{value}"')
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Generate keybinding configurations for various programs from a central configuration file",
+        epilog="Have a nice day! =^_^=",
+    )
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('-es', '--emulationstation', default=False, help="Generate EmulationStation configuration", action="store_true")
+    group.add_argument('-ra', '--retroarch', default=False, help="Generate RetroArch configuration", action="store_true")
+
+    args = parser.parse_args()
+
+    if args.emulationstation:
+        generate_es_config()
+    elif args.retroarch:
+        generate_retroarch_config()
+
+
 if __name__ == '__main__':
-    generate_es_config()
+    main()
