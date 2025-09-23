@@ -6,66 +6,86 @@ yourself out. For commercial derivatives, please consult
 nago@lowellmakes.com.
 
 Joetendo is currently running Ubuntu 24.04 LTS with RetroPie installed
-on an Intel NUC-like PC. RetroPie uses EmulationStation as its main
-launcher interface. The control deck utilizes an iPAC keyboard device,
-which is no longer sold. The iPAC2 is the current iteration of the
-product: https://www.ultimarc.com/control-interfaces/i-pacs/i-pac2/
+on an AMD Ryzen NUC-like miniPC. RetroPie uses EmulationStation as its
+main launcher interface. The control deck utilizes an iPAC keyboard
+device, which is no longer sold. (The
+[iPAC2](https://www.ultimarc.com/control-interfaces/i-pacs/i-pac2/) is
+the current iteration of the product.)
 
-The majority of bespoke customizations made to RetroPie/EmulationStation
-on the Joetendo are in the form of the "vent" steam launcher script,
-which can launch selectively configured steam games from the LowellMakes
-steam account.
+There have been a number of customizations and addons made to the stock
+RetroPie installer. For details, see the `scripts/deploy.sh`
+script. These customizations include:
 
-Other notable tweaks from the "default" are:
+  - Using bleeding-edge lr-mame instead of the archaic lr-mame2003, for
+    better arcade support
+  - Using a custom fork of EmulationStation that:
+    - Disables the main menu when in "kiosk mode"
+    - Allows games to be launched with "start" instead of "A"
+    - Removes more options from the "select" menu
+    - Exports environment variables to launched processes that inform
+      them we are in "kiosk mode", so emulators can be configured to
+      hide options, too.
+  - Disables all GNOME keybinds to prevent conflicts with MAME keybinds
+    that might move or resize windows
+  - Disables all GNOME notifications and alerts
+  - Removes GNOME first-time login screens
+  - Removes GNOME power saving and screen timeouts
+  - Creates a 'kiosk' user and sets up Ubuntu to automatically log in as
+    that account and launch EmulationStation
+  - Enables SSH for remote maintenance by the 'maker' user.
+  - Sets all RetroPie administration scripts to be "hidden", only when
+    in kiosk mode.
+  - Modifies the RetroPie run script to disable the emulator
+    configuration menus when kiosk mode is enabled, to prevent
+    accidentally entering the menu when hitting the A button several
+    times during game launch
+  - Configures EmulationStation, RetroArch, keyd, and RetroPie input to
+    use the ultimarc iPAC controls, based on a single configuration
+    file (`steamvent/keycfg.py`)
+  - Installs and configures Steam support for EmulationStation:
+    - Performs initial installation and setup of steamcmd and steam
+    - Launches steam invisibly in the background on kiosk launch
+    - Adds a new custom "steam" system to `/etc/emulationstation/es_systems.cfg`
+    - Installs a custom steam launcher script ("steamvent") responsible
+      for launching individual steam games from the ES menu
+    - Installs a steam game installer script that fetches art, trailers
+      and metadata for a steam game and adds the appropriate keybind
+      configuration files and ES menu entries
 
-  - GNOME hotkeys have been disabled to prevent arcade controls from
-    accidentally triggering window movement hotkeys.
 
-  - The bootup script for RetroPie (accessible via GNOME settings menu)
-    has been changed to the `~/bin/kiosk` auto-launcher script which
-    facilitates launching steam in conjunction with EmulationStation, as
-    well as forcing EmulationStation into "kiosk" mode, which removes
-    the majority of administration and configuration menus to prevent
-    users from accidentally changing the known good settings.
+# Deployment
 
-  - The RetroPie maintenance menu which is normally visible as a
-    "system" in the EmulationStation launcher has been removed from
-    `/etc/emulationstation/es_systems.cfg`, again to prevent accidental
-    misconfiguration by end users.
+To deploy this repository and create a new Joetendo:
 
-  - The default MAME emulator packaged as part of RetroPie is forked
-    from the 2003 version. We have compiled and enabled the "bleeding
-    edge" MAME emulator instead for increased support and better
-    emulation on a number of arcade titles.
+1. Install Ubuntu 24.04 LTS to a machine. Newer versions might work, but
+   haven't been tested. Name the initial admin user something that isn't
+   "maker" or "kiosk".
 
-Currently, Joetendo runs as the "nago" user. For SSH access, please ping
-nago on basecamp and give them your public SSH key for access.
+2. Upgrade packages to the latest versions;
+   sudo apt-get update && sudo apt-get upgrade -y
+
+3. Use wget and fetch the scripts/deploy.sh script from this repository:
+   wget https://raw.githubusercontent.com/LowellMakes/joetendo/refs/heads/main/scripts/deploy.sh
+
+4. Set the script executable
+   chmod u+x deploy.sh
+
+5. Run the script with admin privileges
+   sudo ./deploy.sh
+
+6. Drive 35 minutes away to get your favorite cup of coffee.
+   Drive 35 minutes back.
+
+7. If all goes well, you should be greeted with a Steam login prompt
+   upon your return. Log in with the LowellMakes credentials. Steam
+   *will* ask for 2FA, you'll need someone who has access to help you
+   sign in. After you successfully log in, Steam will exit and the
+   deployment script will exit.
+
+8. Reboot! You are now experiencing Super Joetendo.
 
 
 # Files in this repository
-
-- `steam/vent` is the code responsible for launching steam games from
-  emulationstation. It also contains an unfinished "first time setup"
-  script for adding steam support to an existing emulationstation
-  install, but it is not entirely finished and hasn't been tested much
-  yet.
-
-- `steam/kiosk` is the code launched at startup, responsible for launching
-  steam and emulationstation in a terminal emulator that supports
-  background images (xfce4-terminal)
-
-- `steam/menu` houses the shell script files that act like "roms" for
-  launching steam games from emulationstation. These simple scripts just
-  call "vent %appID%". emulationstation learns the name of the game from
-  the name of the shell script file.
-
-- `steam/common` is the common keymap configuration file; it assigns
-  aliases to the keypresses for easy reconfiguration in per-game config
-  files.
-
-- `steam/keymaps` are the keymap configuration files for each steam
-  game. They are named after the appID for the steam application, which
-  is a little annoying, but very easy to code for.
 
 - `killswitch/code.py` is a CircuitPython program written for the
   Raspberry Pi Pico that emulates a keyboard device that when its single
@@ -74,28 +94,67 @@ nago on basecamp and give them your public SSH key for access.
   machine if it is in the BIOS screen. This powers the "magic reset
   button" located inside of the Joetendo control deck.
 
+- `scripts/deploy.sh` is the deployment script that sets everything
+  up. It needs root access and expects a pretty much untouched Ubuntu
+  install and an internet connection.
 
-# Deployment
+- `steam/keymaps` are the keymap configuration files for each steam
+  game. They are named after the appID for the steam application, which
+  is a little annoying, but very easy to code for. Presently, none of
+  the installation or setup scripts copy these configuration files from
+  the repo to the `~kiosk/RetroPie/steam/keymaps/` directory, it's a
+  manual affair.
 
-As of time of writing (2025-08-22), these files are manually synced to
-the joetendo and there is no "installer" or script to synchronize
-them. On the joetendo cabinet, these files are located at:
+  For each game installed using the steamvent installer script, a
+  default keymap file will be generated that can then be edited by hand
+  as needed.
 
-- `kiosk` is at `/home/nago/bin/kiosk`
-- `vent` is at `/home/nago/bin/vent`
-- `steam/menu` is at `/home/nago/RetroPie/steam/menu`
-- `steam/keymaps` is at `/home/nago/RetroPie/steam/keymaps`
-- `steam/common` is installed to `/etc/keyd/common`
+- `steam/menu` houses the shell script files that act like "roms" for
+  launching steam games from EmulationStation. These simple scripts just
+  call "vent %appID%". EmulationStation will use metadata created during
+  steamvent install to show art and info about the game. Otherwise, it
+  uses the name of the shell script itself.
 
-EmulationStation configuration is in
-`/etc/emulationstation/es_systems.cfg`, to which we have added a custom
-"steam" system:
+  Like `steam/keymaps`, these are generated by the steamvent
+  installer. At present, none of the installation or setup scripts copy
+  the scripts from the repository to `~kiosk/RetroPie/steam/menu/`.
+
+- `steam/steamvent/` - This directory houses the steamvent Python
+  package, which provides tools for installing and launching Steam games
+  from EmulationStation. This package is installed during
+  `scripts/deploy.sh`.
+
+- `steam/steamvent/setup.py` - This script runs during
+  `scripts/deploy.sh` and performs Steam-specific initialization of the
+  deployment.
+
+- `steam/steamvent/startup.py` - This script provides the `kiosk` and
+  `kiosk-launcher` command line scripts that run at startup and are
+  responsible for launching Steam and EmulationStation. kiosk-launcher
+  effectively just runs `kiosk` in an `xfce4-terminal` window to provide
+  support for background images when launching steam games. The
+  `steam/steamvent/setup.cfg` file names the `kiosk` and
+  `kiosk-launcher` commands and specifies which python code each command
+  should run.
+
+
+# Configuration
+
+At the heart of it, this is EmulationStation + RetroPie plus a few new
+bells and whistles. Most configuration can be found at
+`/opt/retropie/configs`, but keep in mind that this directory is
+effectively owned by the kiosk user and should not be considered global
+configuration.
+
+EmulationStation system configuration can be found at
+`/etc/emulationstation/es_systems.cfg`. This file is where Steam support
+has been added, with an XML entry like the following:
 
 ```
     <system>
       <name>steam</name>
       <fullname>Steam</fullname>
-      <path>/home/nago/RetroPie/steam/menu</path>
+      <path>/home/kiosk/RetroPie/steam/menu</path>
       <extension>.sh</extension>
       <command>%ROM%</command>
       <platform>steam</platform>
@@ -109,16 +168,19 @@ steam/menu directory are "roms", and we launch them just by running the
 simply call out to the "vent" executable, which is the actual steam game
 launcher that makes the magic happen.
 
+Additional games can be added to the `~kiosk/RetroPie/steam/menu`
+directory as shell scripts.
+
+
 # Future
 
-As the design of the launcher and accompanying software stabilizes and
-solidifies, I hope to automate installation and synchronization so that
-new steam games can be added via the git repository, and switch the
-"nago" user to two separate accounts, "maker" for administration tasks
-and "kiosk" as the unprivileged runtime account that powers the cabinet.
+I have plans to add a new version of the steam launcher and the
+steamvent installer script, alongside documentation for the
+game-addition process. Sit tight until then, please!
 
 Discussion and planning should occur primarily via the "Arcade and Video
 Games" basecamp: https://3.basecamp.com/3376147/projects/1248767
+
 
 # Oh, one more thing
 

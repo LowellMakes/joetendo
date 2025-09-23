@@ -8,7 +8,7 @@ column (Button) lists which physical button on the control deck is
 wired to that terminal, if any.
 
 The I-PAC is a discontinued device from Ultimarc, the product
-documentation is available through archive.org: 
+documentation is available through archive.org:
 https://web.archive.org/web/20130106004021/https://www.ultimarc.com/ipac1.html
 
 Arcade games (especially through MAME) tend to label their buttons
@@ -33,11 +33,11 @@ Port    Keybind      Button
 1sw4    leftshift    "Y" (Top row, leftmost)
 1sw5    z	     "X" (Top row, middle)
 1sw6    x            "L" (Top row, rightmost)
-1sw7    c            "EXIT" (Central console, red button)
+1sw7    c            --
 1sw8    v	     --
-1strt   1	     "SELECT/COIN" -- FIXME, this was wired backwards!
-1coin   5	     "START" -- FIXME, this was wired backwards!
-1a      p	     --
+1strt   1	     "START"
+1coin   5	     "SELECT", "COIN"
+1a      p	     "EXIT" (Central console, red button)
 1b      enter	     --
 
 2right  g            2P joystick, right
@@ -52,8 +52,8 @@ Port    Keybind      Button
 2sw6    k            "L" (Top row, rightmost)
 2sw7    j            Hidden button inside of control deck
 2sw8    l            --
-2strt   2            "SELECT/COIN" -- FIXME, this was wired backwards!
-2coin   6            "START" -- FIXME, this was wired backwards!
+2strt   2            "START"
+2coin   6            "SELECT", "COIN"
 2a      tab          --
 2b      esc          --
 ======  ===========  =================================================
