@@ -290,13 +290,13 @@ def install_game(cfg, appID):
 
 
 def do_main():
-    cfg = get_configuration()
-    for key, value in cfg.__dict__.items():
-        print(f"{key:20s} {value}")
-
     parser = argparse.ArgumentParser()
     parser.add_argument("appID")
     args = parser.parse_args()
+
+    cfg = get_configuration()
+    for key, value in cfg.__dict__.items():
+        print(f"{key:20s} {value}")
 
     install_game(cfg, args.appID)
 
