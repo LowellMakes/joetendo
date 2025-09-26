@@ -7,7 +7,7 @@ import urllib
 import requests
 import vdf
 
-from common import ex
+from .common import ex
 
 
 LOG = logging.getLogger('vent')
