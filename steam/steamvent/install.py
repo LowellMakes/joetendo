@@ -198,7 +198,10 @@ def generate_gamelist_entry(info, appID, libimg, script_path, cachedir):
 
 
 def update_gamelist_xml(game_entry):
-    gamelist_path = os.path.expanduser("~/.emulationstation/gamelists/steam/gamelist.xml")
+    gamelist_path = os.path.expanduser(
+        "~/.emulationstation/gamelists/steam/gamelist.xml"
+    )
+    os.makedirs(Path(gamelist_path).parent, exist_ok=True)
 
     try:
         tree = ElementTree.parse(gamelist_path)
