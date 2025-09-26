@@ -12,9 +12,9 @@ from xml.etree import ElementTree
 
 import requests
 
-from common import get_configuration, main_wrapper
-import keycfg
-from valve import (
+from .common import get_configuration, main_wrapper
+import .keycfg
+from .valve import (
     get_executable,
     load_or_fetch_info,
 )
