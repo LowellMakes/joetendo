@@ -7,6 +7,7 @@ import logging
 import os
 from pathlib import Path
 import stat
+import subprocess
 from xml.etree import ElementTree
 
 import requests
@@ -49,7 +50,8 @@ def get_images(appID, info, cachedir):
         key = f"{basename}.{ext}"
 
         if url in queue.values():
-            print(f"skipping {url}, already in queue")
+            pass
+            #print(f"skipping {url}, already in queue")
         elif key in queue:
             queue[f"{basename}-{lang}.{ext}"] = url
         else:
@@ -124,11 +126,9 @@ def get_images(appID, info, cachedir):
     for local_name, url in queue.items():
         cache_asset(cachedir, appID, url, local_name)
 
-    print(json.dumps(queue, indent=2))
-    print("")
-
 
 def write_keymap(path, appID, info):
+    print(f"writing keymap to {path}")
     name = info['vdf']['common']['name']
 
     with open(path, "w") as outfile:
@@ -142,6 +142,7 @@ def write_keymap(path, appID, info):
 
 
 def write_runscript(path, appID):
+    print(f"writing runscript to {path}")
     os.makedirs(Path(path).parent, exist_ok=True)
 
     with open(path, 'w', encoding='UTF-8') as outfile:
@@ -165,6 +166,7 @@ def generate_gamelist_entry(info, appID, libimg, script_path, cachedir):
 
     video_path = os.path.join(local_dir, 'trailer.mp4')
     if os.path.exists(video_path):
+        print(f"using trailer '{video_path}'")
         metadata['video'] = video_path
 
     if 'review_percentage' in info['vdf']['common']:
@@ -190,7 +192,7 @@ def generate_gamelist_entry(info, appID, libimg, script_path, cachedir):
             metadata['players'] = "1"
             break
 
-    metadata['path'] = script_path
+    metadata['path'] = str(script_path)
 
     return metadata
 
@@ -211,13 +213,13 @@ def update_gamelist_xml(game_entry):
     for elem in root.iter(tag='game'):
         path = elem.find('path')
         if path is not None and path.text == game_entry['path']:
-            print("Existing entry found, updating/overwriting")
+            print(f"Updating gamelist.xml entry in '{gamelist_path}'")
             game = elem
             new_element = False
             break
 
     if game is None:
-        print("No existing game entry found, creating new")
+        print(f"Adding gamelist.xml entry to '{gamelist_path}'")
         game = ElementTree.Element("game")
         for key, value in game_entry.items():
             node = ElementTree.Element(key)
@@ -226,28 +228,35 @@ def update_gamelist_xml(game_entry):
         root.append(game)
 
     ElementTree.indent(tree)
-    print(ElementTree.tostring(root, encoding='UTF-8').decode())
+    #print(ElementTree.tostring(root, encoding='UTF-8').decode())
     tree.write(gamelist_path, encoding='UTF-8')
 
 
 def install_game(cfg, appID):
     os.makedirs(cfg.cache_dir, exist_ok=True)
 
+    print("")
+    print("Fetching metadata ...")
     info = load_or_fetch_info(appID, cfg.cache_dir)
+    print("")
 
     # Just to ensure that we can actually identify the binary when it
     # comes time to launch the game.
     name = info['vdf']['common']['name']
     exec_name = get_executable(info)
+
+    print(f"Steam appID: {appID}")
     print(f"Steam game: {name}")
     print(f"Steam game executable: {exec_name}")
+    print("")
 
     print("Fetching assets ...")
     get_images(appID, info, cfg.cache_dir)
+    print("")
 
     # Guess which image to use for our thumbnail. Go through the list
     # until we find one that seems suitable.
-    for name in (
+    for img_name in (
         'hero_capsule_2x.jpg',
         'library_capsule_2x.jpg',
         'hero_capsule.jpg',
@@ -256,12 +265,13 @@ def install_game(cfg, appID):
         'header.jpg',
         'small_capsule.jpg'
     ):
-        libimg = os.path.join(cfg.cache_dir, str(appID), name)
+        libimg = os.path.join(cfg.cache_dir, str(appID), img_name)
         if os.path.exists(libimg):
             break
     else:
         libimg = None
 
+    print(f"using thumbnail {libimg}")
     script_path = cfg.game_dir.joinpath(f"{name}.sh")
     write_runscript(script_path, appID)
 
@@ -271,9 +281,18 @@ def install_game(cfg, appID):
     game_entry = generate_gamelist_entry(info, appID, libimg, script_path, cfg.cache_dir)
     update_gamelist_xml(game_entry)
 
+    subprocess.run([
+        "steamcmd",
+        "+login", "LowellMakes",
+        "+app_update", str(appID),
+        "+exit",
+    ], check=True)
+
 
 def do_main():
     cfg = get_configuration()
+    for key, value in cfg.__dict__.items():
+        print(f"{key:20s} {value}")
 
     parser = argparse.ArgumentParser()
     parser.add_argument("appID")
