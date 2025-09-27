@@ -291,6 +291,10 @@ def install_game(cfg, appID):
     game_entry = generate_gamelist_entry(info, appID, libimg, script_path, cfg.cache_dir)
     update_gamelist_xml(game_entry)
 
+    print("All done!")
+    print("Remember to edit the key configuration file to finish installation:")
+    print(f"    {str(keymap_path)}")
+
 
 def do_main():
     parser = argparse.ArgumentParser()
