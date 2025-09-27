@@ -257,6 +257,13 @@ def install_game(cfg, appID):
     get_images(appID, info, cfg.cache_dir)
     print("")
 
+    subprocess.run([
+        "steamcmd",
+        "+login", "LowellMakes",
+        "+app_update", str(appID),
+        "+exit",
+    ], check=True)
+
     # Guess which image to use for our thumbnail. Go through the list
     # until we find one that seems suitable.
     for img_name in (
@@ -283,13 +290,6 @@ def install_game(cfg, appID):
 
     game_entry = generate_gamelist_entry(info, appID, libimg, script_path, cfg.cache_dir)
     update_gamelist_xml(game_entry)
-
-    subprocess.run([
-        "steamcmd",
-        "+login", "LowellMakes",
-        "+app_update", str(appID),
-        "+exit",
-    ], check=True)
 
 
 def do_main():
