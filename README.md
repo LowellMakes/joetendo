@@ -5,6 +5,9 @@ reserved". Informally, for non-commercial derivatives, please knock
 yourself out. For commercial derivatives, please consult
 nago@lowellmakes.com.
 
+Joetendo is a community-built custom arcade cabinet in the LowellMakes
+makerspace in Lowell, Massachusetts.
+
 Joetendo is currently running Ubuntu 24.04 LTS with RetroPie installed
 on an AMD Ryzen NUC-like miniPC. RetroPie uses EmulationStation as its
 main launcher interface. The control deck utilizes an iPAC keyboard
@@ -13,7 +16,8 @@ device, which is no longer sold. (The
 the current iteration of the product.)
 
 There have been a number of customizations and addons made to the stock
-RetroPie installer. For details, see the `scripts/deploy.sh`
+RetroPie installer. For details, see the
+[scripts/deploy.sh](https://github.com/LowellMakes/joetendo/blob/main/scripts/deploy.sh)
 script. These customizations include:
 
   - Using bleeding-edge lr-mame instead of the archaic lr-mame2003, for
@@ -40,8 +44,8 @@ script. These customizations include:
     accidentally entering the menu when hitting the A button several
     times during game launch
   - Configures EmulationStation, RetroArch, keyd, and RetroPie input to
-    use the ultimarc iPAC controls, based on a single configuration
-    file (`steamvent/keycfg.py`)
+    use the ultimarc iPAC controls, based on a single configuration file
+    ((steamvent/keycfg.py)[https://github.com/LowellMakes/joetendo/blob/main/steam/steamvent/keycfg.py])
   - Installs and configures Steam support for EmulationStation:
     - Performs initial installation and setup of steamcmd and steam
     - Launches steam invisibly in the background on kiosk launch
@@ -66,7 +70,9 @@ To deploy this repository and create a new Joetendo:
    sudo apt-get update && sudo apt-get upgrade -y
    ```
 
-3. Use `wget` and fetch the `scripts/deploy.sh` script from this repository:
+3. Use `wget` and fetch the
+   [scripts/deploy.sh](https://github.com/LowellMakes/joetendo/blob/main/scripts/deploy.sh)
+   script from this repository:
    ```sh
    wget https://raw.githubusercontent.com/LowellMakes/joetendo/refs/heads/main/scripts/deploy.sh
    ```
@@ -95,106 +101,104 @@ To deploy this repository and create a new Joetendo:
 
 # Files in this repository
 
-- [killswitch/code.py](https://github.com/LowellMakes/joetendo/blob/main/killswitch/code.py)
-  is a CircuitPython program written for the
-  Raspberry Pi Pico that emulates a keyboard device that when its single
-  button is pressed, issues a SysRq "REISUB" request to immediately
-  reboot linux, followed by a ctrl+alt+del sequence to reboot the
-  machine if it is in the BIOS screen. This powers the "magic reset
-  button" located inside of the Joetendo control deck.
+-
+  [killswitch/code.py](https://github.com/LowellMakes/joetendo/blob/main/killswitch/code.py)
+  is a CircuitPython program written for the Raspberry Pi Pico that
+  emulates a keyboard device that when its single button is pressed,
+  issues a SysRq "REISUB" request to immediately reboot linux, followed
+  by a ctrl+alt+del sequence to reboot the machine if it is in the BIOS
+  screen. This powers the "magic reset button" located inside of the
+  Joetendo control deck.
 
-- [scripts/deploy.sh](https://github.com/LowellMakes/joetendo/blob/main/scripts/deploy.sh)
-  is the deployment script that sets everything
-  up. It needs root access and expects a pretty much untouched Ubuntu
-  install and an internet connection.
+-
+  [scripts/deploy.sh](https://github.com/LowellMakes/joetendo/blob/main/scripts/deploy.sh)
+  is the deployment script that sets everything up. It needs root access
+  and expects a pretty much untouched Ubuntu install and an internet
+  connection.
 
-- [steam/keymaps](https://github.com/LowellMakes/joetendo/tree/main/steam/keymaps) 
-  houses the keymap configuration files for each steam
-  game. They are named after the appID for the steam application, which
-  is a little annoying, but very easy to code for. Presently, none of
-  the installation or setup scripts copy these configuration files from
-  the repo to the `~kiosk/RetroPie/steam/keymaps/` directory, it's a
-  manual affair.
+-
+  [steam/keymaps](https://github.com/LowellMakes/joetendo/tree/main/steam/keymaps)
+  houses the keymap configuration files for each steam game. They are
+  named after the appID for the steam application, which is a little
+  annoying, but very easy to code for. Presently, none of the
+  installation or setup scripts copy these configuration files from the
+  repo to the `~kiosk/RetroPie/steam/keymaps/` directory, it's a manual
+  affair.
 
-  For each game installed using the steamvent installer script, a
-  default keymap file will be generated that can then be edited by hand
-  as needed.
+  For each game installed using the `vent-installer` script, a default
+  keymap file will be generated that can then be edited by hand as
+  needed.
 
-- [steam/menu](https://github.com/LowellMakes/joetendo/tree/main/steam/menu)
-  houses the shell script files that act like "roms" for
-  launching steam games from EmulationStation. These simple scripts just
-  call "vent %appID%". EmulationStation will use metadata created during
-  steamvent install to show art and info about the game. Otherwise, it
-  uses the name of the shell script itself.
+-
+  [steam/menu](https://github.com/LowellMakes/joetendo/tree/main/steam/menu)
+  houses the shell script files that act like "roms" for launching steam
+  games from EmulationStation. These simple scripts just call "vent
+  %appID%". EmulationStation will use metadata created during steamvent
+  install to show art and info about the game. Otherwise, it uses the
+  name of the shell script itself.
 
   Like `steam/keymaps`, these are generated by the steamvent
   installer. At present, none of the installation or setup scripts copy
   the scripts from the repository to `~kiosk/RetroPie/steam/menu/`.
 
-- [steam/steamvent/](https://github.com/LowellMakes/joetendo/tree/main/steam/steamvent) - 
-  This directory houses the steamvent Python
-  package, which provides tools for installing and launching Steam games
-  from EmulationStation. This package is installed for all users during
+-
+  [steam/steamvent/](https://github.com/LowellMakes/joetendo/tree/main/steam/steamvent)
+  - This directory houses the steamvent Python package, which provides
+  tools for installing and launching Steam games from
+  EmulationStation. This package is installed for all users during
   `scripts/deploy.sh`.
 
-- [steam/steamvent/setup.py](https://github.com/LowellMakes/joetendo/blob/main/steam/steamvent/setup.py) - 
-  This script runs during
-  `scripts/deploy.sh` and performs Steam-specific initialization of the
-  deployment, including installing `steam`, `steamcmd`, and lots of various dependencies.
+-
+  [steam/steamvent/setup.py](https://github.com/LowellMakes/joetendo/blob/main/steam/steamvent/setup.py)
+  - This script runs during `scripts/deploy.sh` and performs
+  Steam-specific initialization of the deployment, including installing
+  `steam`, `steamcmd`, and lots of various dependencies.
 
-- [steam/steamvent/startup.py](https://github.com/LowellMakes/joetendo/blob/main/steam/steamvent/startup.py) -
-  This script provides the `kiosk` and
-  `kiosk-launcher` command line scripts that run at startup and are
-  responsible for launching Steam and EmulationStation. `kiosk-launcher`
-  effectively just runs `kiosk` in an `xfce4-terminal` window to provide
-  support for background images when launching steam games. The
-  `steam/steamvent/setup.cfg` file names the `kiosk` and
-  `kiosk-launcher` commands and specifies which python code each command
-  should run.
-
-
-# Configuration
-
-At the heart of it, this is EmulationStation + RetroPie plus a few new
-bells and whistles. Most configuration can be found at
-`/opt/retropie/configs`, but keep in mind that this directory is
-effectively owned by the kiosk user and should not be considered global
-configuration.
-
-EmulationStation system configuration can be found at
-`/etc/emulationstation/es_systems.cfg`. This file is where Steam support
-has been added, with an XML entry like the following:
-
-```
-    <system>
-      <name>steam</name>
-      <fullname>Steam</fullname>
-      <path>/home/kiosk/RetroPie/steam/menu</path>
-      <extension>.sh</extension>
-      <command>%ROM%</command>
-      <platform>steam</platform>
-      <theme>steam</theme>
-    </system>
-```
-
-We configure EmulationStation to believe the ".sh" files in the
-steam/menu directory are "roms", and we launch them just by running the
-"rom" as an executable command (`%ROM%`). These shell script "roms"
-simply call out to the "vent" executable, which is the actual steam game
-launcher that makes the magic happen.
-
-Additional games can be added to the `~kiosk/RetroPie/steam/menu`
-directory as shell scripts.
+-
+  [steam/steamvent/startup.py](https://github.com/LowellMakes/joetendo/blob/main/steam/steamvent/startup.py)
+  - This script provides the `kiosk` and `kiosk-launcher` CLI commands
+  that run at startup and are responsible for launching Steam and
+  EmulationStation. `kiosk-launcher` effectively just runs `kiosk` in an
+  `xfce4-terminal` window to provide support for background images when
+  launching steam games. The
+  [steam/setup.cfg](https://github.com/LowellMakes/joetendo/blob/main/steam/setup.cfg)
+  file names the `kiosk` and `kiosk-launcher` commands and specifies
+  which python code each command should run.
 
 
-# Future
+# Adding new games to Joetendo
 
-I have plans to add a new version of the steam launcher and the
-steamvent installer script, alongside documentation for the
-game-addition process. Sit tight until then, please!
+The process of adding new games is documented in detail in the
+[adding_games.md](https://github.com/LowellMakes/joetendo/blob/main/adding_games.md)
+doc.
+
+
+# Architecture
+
+A detailed writeup of the architecture and logical flow of the Joetendo
+boot process and configuration files is being written and will be added
+soon. Please bug nago on basecamp if you have any specific questions in
+the meantime!
+
+
+# Contributing
 
 Discussion and planning should occur primarily via the [Arcade and Video
 Games basecamp](https://3.basecamp.com/3376147/projects/1248767).
+
+A new version of the steam launcher script is currently in progress, as
+well as additional automation concerning configuring the Steam client.
+
+A major desire is to improve the steam launcher script to track steam
+subprocesses better, as certain games (Tetris Effect, in particular) do
+not work with the steam launcher as-is and require additional hacks to
+work correctly. Some games (Blue Revolver, Tetris Effect) do not respond
+particularly well to the Exit button command and do not exit cleanly.
+
+custom artwork and animations are desired for the boot splash logo, the
+EmulationStation boot splash screen, the EmulationStation theme itself,
+the Joetendo control deck, marquee, and side panels. Get in touch if
+you're interested!
 
 
 # Oh, one more thing
@@ -204,3 +208,9 @@ made, I'd *love* to put it on the Joetendo. It needs to either run in
 Linux or run suitably under wine. For development purposes, if you
 target Ubuntu 24.04 LTS, I should be able to get it running on the
 cabinet. I'd love to feature your games, no matter how small or silly!
+
+Joetendo controls work by emulating a keyboard; note that the joysticks
+are four-switch digital devices and not analog joysticks. If you have
+the ability to build your game using the [Joetendo default
+keybinds](https://github.com/LowellMakes/joetendo/blob/main/ipac.rst),
+you'll have good luck getting it to run suitably on Joetendo.

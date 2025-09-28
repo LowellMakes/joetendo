@@ -19,6 +19,12 @@ physical labels. MAME and Steam games may display prompts that don't
 correlate physically to the visible labels, there's no real way around
 this - you'll just have to try the buttons and see what happens.
 
+Note that these keybinds are merely the "default"; the actual keypress
+registered when a button is pushed can in fact be changed by using the
+keyd configuration files; this process is documented in the
+[adding_games.md](https://github.com/LowellMakes/joetendo/blob/main/adding_games.md)
+documentation.
+
 
 ======  ===========  =================================================
 Port    Keybind      Button
