@@ -186,3 +186,23 @@ def load_or_fetch_info(appID, cachedir):
         'store': store_info,
     }
     return info
+
+
+def guess_thumbnail(cache_dir, appID):
+    # Guess which image to use for our thumbnail. Go through the list
+    # until we find one that seems suitable.
+
+    for img_name in (
+        'hero_capsule_2x.jpg',
+        'library_capsule_2x.jpg',
+        'hero_capsule.jpg',
+        'library_capsule.jpg',
+        'main_capsule.jpg',
+        'header.jpg',
+        'small_capsule.jpg'
+    ):
+        libimg = os.path.join(cache_dir, str(appID), img_name)
+        if os.path.exists(libimg):
+            return libimg
+
+    return None

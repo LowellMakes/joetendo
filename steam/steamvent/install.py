@@ -17,6 +17,7 @@ from . import keycfg
 from .valve import (
     get_executable,
     load_or_fetch_info,
+    guess_thumbnail,
 )
 
 
@@ -29,11 +30,14 @@ def cache_asset(cachedir, appID, url, local_name):
 
     local_path = os.path.join(local_dir, local_name)
     if not os.path.exists(local_path):
-        rsp = requests.get(url)
-        print(f"{rsp.status_code}: {url}")
-        if rsp.status_code == 200:
-            with open(local_path, "wb") as outfile:
-                outfile.write(rsp.content)
+        try:
+            rsp = requests.get(url)
+            print(f"{rsp.status_code}: {url}")
+            if rsp.status_code == 200:
+                with open(local_path, "wb") as outfile:
+                    outfile.write(rsp.content)
+        except requests.ConnectionError:
+            LOG.warning("ConnectionError fetching '%s'", url)
 
 
 def get_images(appID, info, cachedir):
@@ -264,23 +268,7 @@ def install_game(cfg, appID):
         "+exit",
     ], check=True)
 
-    # Guess which image to use for our thumbnail. Go through the list
-    # until we find one that seems suitable.
-    for img_name in (
-        'hero_capsule_2x.jpg',
-        'library_capsule_2x.jpg',
-        'hero_capsule.jpg',
-        'library_capsule.jpg',
-        'main_capsule.jpg',
-        'header.jpg',
-        'small_capsule.jpg'
-    ):
-        libimg = os.path.join(cfg.cache_dir, str(appID), img_name)
-        if os.path.exists(libimg):
-            break
-    else:
-        libimg = None
-
+    libimg = guess_thumbnail(cfg.cache_dir, str(appID))
     print(f"using thumbnail {libimg}")
     script_path = cfg.game_dir.joinpath(f"{name}.sh")
     write_runscript(script_path, appID)
