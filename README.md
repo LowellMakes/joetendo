@@ -5,15 +5,16 @@ reserved". Informally, for non-commercial derivatives, please knock
 yourself out. For commercial derivatives, please consult
 nago@lowellmakes.com.
 
-Joetendo is a community-built custom arcade cabinet in the LowellMakes
-makerspace in Lowell, Massachusetts.
+Joetendo is a community-built custom arcade cabinet in the [LowellMakes](https://lowellmakes.com/)
+makerspace in [Lowell, Massachusetts](https://en.wikipedia.org/wiki/Lowell,_Massachusetts).
 
-Joetendo is currently running Ubuntu 24.04 LTS with RetroPie installed
-on an AMD Ryzen NUC-like miniPC. RetroPie uses EmulationStation as its
-main launcher interface. The control deck utilizes an iPAC keyboard
-device, which is no longer sold. (The
+Joetendo is currently running [Ubuntu 24.04 LTS](https://ubuntu.com/download/desktop) with [RetroPie](https://retropie.org.uk/) installed
+on an AMD Ryzen NUC-like miniPC. RetroPie uses [EmulationStation](https://emulationstation.org/) as its
+main launcher interface. The control deck utilizes an 
+[iPAC](https://web.archive.org/web/20130106004021/https://www.ultimarc.com/ipac1.html)
+keyboard device, which is no longer sold. The
 [iPAC2](https://www.ultimarc.com/control-interfaces/i-pacs/i-pac2/) is
-the current iteration of the product.)
+the current iteration of the product.
 
 There have been a number of customizations and addons made to the stock
 RetroPie installer. For details, see the
@@ -45,12 +46,12 @@ script. These customizations include:
     times during game launch
   - Configures EmulationStation, RetroArch, keyd, and RetroPie input to
     use the ultimarc iPAC controls, based on a single configuration file
-    ((steamvent/keycfg.py)[https://github.com/LowellMakes/joetendo/blob/main/steam/steamvent/keycfg.py])
+    ([steamvent/keycfg.py](https://github.com/LowellMakes/joetendo/blob/main/steam/steamvent/keycfg.py))
   - Installs and configures Steam support for EmulationStation:
     - Performs initial installation and setup of steamcmd and steam
     - Launches steam invisibly in the background on kiosk launch
     - Adds a new custom "steam" system to `/etc/emulationstation/es_systems.cfg`
-    - Installs a custom steam launcher script ("steamvent") responsible
+    - Installs a custom steam launcher script (`vent-installer`) responsible
       for launching individual steam games from the ES menu
     - Installs a steam game installer script that fetches art, trailers
       and metadata for a steam game and adds the appropriate keybind
