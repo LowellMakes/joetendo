@@ -66,7 +66,7 @@ def launch_wait(cfg, appID):
 
     info = load_or_fetch_info(appID, cfg.cache_dir)
     executable = get_executable(info)
-    game = info.get('common', {}).get('name', '?????')
+    game = info['vdf'].get('common', {}).get('name', '?????')
 
     img = os.path.join(cfg.cache_dir, str(appID), "raw_page_background.jpg")
     if not os.path.exists(img):
